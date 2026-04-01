@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Daemon Hunter - Lane Battle Prototype</title>
+  <style>
+    :root {
+      --bg: #10121c;
+      --panel: #1a1f2e;
+      --panel-2: #242b3d;
+      --text: #ecf0ff;
+      --muted: #a7b0ca;
+      --accent: #7de2d1;
+      --danger: #ff7a7a;
+      --warn: #ffcc66;
+      --good: #8cff98;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, #090b12, var(--bg));
+      color: var(--text);
+      touch-action: manipulation;
+      overflow: hidden;
+    }
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      padding: 10px;
+      background: rgba(10, 12, 20, 0.9);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .pill {
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .pill strong { color: var(--accent); }
+
+    .buttons {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 10px 12px;
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 42px;
+    }
+
+    button:active { transform: translateY(1px); }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #gameWrap {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      background: #111522;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: linear-gradient(180deg, #12182a 0%, #182032 100%);
+    }
+
+    .overlay {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      top: 10px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .heroBar {
+      background: rgba(10, 12, 20, 0.7);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 8px;
+      width: min(280px, 43vw);
+    }
+
+    .heroBar h3 {
+      margin: 0 0 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .bar {
+      height: 10px;
+      width: 100%;
+      background: #0b0f18;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    .fill {
+      height: 100%;
+      width: 50%;
+    }
+
+    .hp { background: linear-gradient(90deg, #ff6767, #ff9f9f); }
+    .mana { background: linear-gradient(90deg, #5c8dff, #86d7ff); }
+
+    .bottomUI {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      padding: 10px;
+      background: rgba(10, 12, 20, 0.95);
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .skillRow, .shopRow {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .skill {
+      min-width: 92px;
+      text-align: center;
+      position: relative;
+    }
+
+    .skill small, .shopItem small {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    .shopItem {
+      min-width: 140px;
+      text-align: left;
+    }
+
+    .message {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(8, 10, 16, 0.88);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px;
+      padding: 16px;
+      width: min(90vw, 520px);
+      text-align: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    .message.show { opacity: 1; }
+
+    .help {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    @media (min-width: 900px) {
+      .bottomUI {
+        grid-template-columns: 1.2fr 1fr;
+        align-items: start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="topbar">
+      <div class="stats" id="stats"></div>
+      <div class="buttons">
+        <button id="restartBtn">Neustart</button>
+      </div>
+    </div>
+
+    <div id="gameWrap">
+      <canvas id="game"></canvas>
+
+      <div class="overlay">
+        <div class="heroBar">
+          <h3>Dein Dämon</h3>
+          <div class="bar"><div class="fill hp" id="playerHpFill"></div></div>
+          <div class="bar"><div class="fill mana" id="playerManaFill"></div></div>
+          <div id="playerText" class="help"></div>
+        </div>
+        <div class="heroBar">
+          <h3>Gegnerischer Dämon</h3>
+          <div class="bar"><div class="fill hp" id="enemyHpFill"></div></div>
+          <div class="bar"><div class="fill mana" id="enemyManaFill"></div></div>
+          <div id="enemyText" class="help"></div>
+        </div>
+      </div>
+
+      <div class="message" id="message"></div>
+    </div>
+
+    <div class="bottomUI">
+      <div>
+        <div class="skillRow" id="skills"></div>
+        <div class="help" style="margin-top: 8px;">
+          Mobile: Tippe auf Skills unten. Desktop: Q / W / E / R. <br>
+          Dein Dämon bewegt sich automatisch leicht Richtung Lane-Mitte und greift nahe Ziele von selbst an.
+        </div>
+      </div>
+      <div>
+        <div class="shopRow" id="shop"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const statsEl = document.getElementById('stats');
+    const skillsEl = document.getElementById('skills');
+    const shopEl = document.getElementById('shop');
+    const messageEl = document.getElementById('message');
+    const restartBtn = document.getElementById('restartBtn');
+
+    const playerHpFill = document.getElementById('playerHpFill');
+    const playerManaFill = document.getElementById('playerManaFill');
+    const enemyHpFill = document.getElementById('enemyHpFill');
+    const enemyManaFill = document.getElementById('enemyManaFill');
+    const playerText = document.getElementById('playerText');
+    const enemyText = document.getElementById('enemyText');
+
+    let W = 1280;
+    let H = 720;
+    let laneY = 0;
+    let cameraShake = 0;
+
+    const state = {
+      time: 0,
+      lastTs: 0,
+      creeps: [],
+      projectiles: [],
+      effects: [],
+      winner: null,
+      spawnTimer: 0,
+      enemyThinkTimer: 0,
+      player: null,
+      enemy: null,
+      input: {
+        mouseX: 0,
+        mouseY: 0,
+        moving: false,
+      },
+      uiMessageTimer: 0,
+      message: '',
+    };
+
+    const CONFIG = {
+      creepSpawnEvery: 5.5,
+      meleeCount: 2,
+      rangedCount: 1,
+      pointsPerMelee: 18,
+      pointsPerRanged: 24,
+      expPerMelee: 14,
+      expPerRanged: 18,
+      heroKillGold: 120,
+      heroKillExp: 90,
+      laneTopOffset: -60,
+      laneBottomOffset: 60,
+      arenaPadding: 44,
+    };
+
+    const COLORS = {
+      ally: '#7de2d1',
+      enemy: '#ff8a8a',
+      ally2: '#6cb6ff',
+      enemy2: '#ffca75',
+      neutral: '#d9d9e3',
+      bgLine: '#29314a',
+      grass: '#0f1524',
+    };
+
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function dist(a, b) {
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      return Math.hypot(dx, dy);
+    }
+
+    function rand(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    function showMessage(text, duration = 2.2) {
+      state.message = text;
+      state.uiMessageTimer = duration;
+      messageEl.textContent = text;
+      messageEl.classList.add('show');
+    }
+
+    function xpToNext(level) {
+      return 55 + (level - 1) * 35;
+    }
+
+    function makeHero(side) {
+      const isPlayer = side === 'left';
+      const baseX = isPlayer ? 170 : W - 170;
+      return {
+        type: 'hero',
+        side,
+        x: baseX,
+        y: laneY,
+        vx: 0,
+        vy: 0,
+        radius: 22,
+        facing: isPlayer ? 0 : Math.PI,
+        moveTargetX: baseX,
+        moveTargetY: laneY,
+        maxHp: 350,
+        hp: 350,
+        maxMana: 160,
+        mana: 160,
+        manaRegen: 8,
+        attackDamage: 22,
+        attackRange: 74,
+        attackCd: 0,
+        attackSpeed: 0.8,
+        moveSpeed: 150,
+        level: 1,
+        exp: 0,
+        gold: 0,
+        kills: 0,
+        deaths: 0,
+        items: [],
+        skillPointsSpent: 0,
+        dead: false,
+        respawnTimer: 0,
+        buff: null,
+      };
+    }
+
+    function heroStatsWithItems(hero) {
+      let bonusHp = 0;
+      let bonusMana = 0;
+      let bonusDamage = 0;
+      let bonusRegen = 0;
+      let bonusSpeed = 0;
+      for (const item of hero.items) {
+        bonusHp += item.bonusHp || 0;
+        bonusMana += item.bonusMana || 0;
+        bonusDamage += item.bonusDamage || 0;
+        bonusRegen += item.bonusRegen || 0;
+        bonusSpeed += item.bonusSpeed || 0;
+      }
+      return {
+        maxHp: hero.maxHp + bonusHp,
+        maxMana: hero.maxMana + bonusMana,
+        attackDamage: hero.attackDamage + bonusDamage,
+        manaRegen: hero.manaRegen + bonusRegen,
+        moveSpeed: hero.moveSpeed + bonusSpeed,
+      };
+    }
+
+    const SKILLS = [
+      {
+        key: 'Q',
+        name: 'Shadow Bolt',
+        cost: 24,
+        cooldown: 2.5,
+        desc: 'Schießt ein Projektil auf das nächste Ziel.',
+        use(caster, enemyHero) {
+          const target = findNearestTarget(caster, 340);
+          if (!target) return false;
+          faceTowards(caster, target.x, target.y);
+          state.projectiles.push({
+            from: caster,
+            target,
+            x: caster.x,
+            y: caster.y - 10,
+            speed: 320,
+            radius: 6,
+            damage: 42 + caster.level * 6,
+            color: caster.side === 'left' ? COLORS.ally2 : COLORS.enemy2,
+            kind: 'bolt'
+          });
+          burst(caster.x, caster.y - 10, caster.side === 'left' ? COLORS.ally2 : COLORS.enemy2, 8);
+          return true;
+        }
+      },
+      {
+        key: 'W',
+        name: 'Soul Burst',
+        cost: 36,
+        cooldown: 5.5,
+        desc: 'Flächenschaden um deinen Dämon.',
+        use(caster) {
+          const radius = 110;
+          let hit = false;
+          const enemies = getOpposingUnits(caster.side);
+          for (const unit of enemies) {
+            if (unit.dead) continue;
+            if (dist(caster, unit) <= radius) {
+              damageUnit(unit, 36 + caster.level * 7, caster);
+              hit = true;
+            }
+          }
+          burst(caster.x, caster.y, caster.side === 'left' ? COLORS.ally : COLORS.enemy, 18);
+          cameraShake = 6;
+          return hit;
+        }
+      },
+      {
+        key: 'E',
+        name: 'Drain',
+        cost: 30,
+        cooldown: 7,
+        desc: 'Schadet einem Ziel und heilt dich.',
+        use(caster) {
+          const target = findNearestTarget(caster, 180, true);
+          if (!target) return false;
+          faceTowards(caster, target.x, target.y);
+          const amount = 48 + caster.level * 5;
+          damageUnit(target, amount, caster);
+          healUnit(caster, amount * 0.55);
+          burst(target.x, target.y, '#b38cff', 10);
+          return true;
+        }
+      },
+      {
+        key: 'R',
+        name: 'Overdrive',
+        cost: 48,
+        cooldown: 12,
+        desc: 'Kurz Buff auf Schaden und Tempo.',
+        use(caster) {
+          caster.buff = {
+            timer: 5,
+            damage: 14,
+            speed: 24,
+          };
+          burst(caster.x, caster.y, '#fff0a8', 14);
+          return true;
+        }
+      }
+    ];
+
+    const SHOP_ITEMS = [
+      { name: 'Claw', cost: 80, bonusDamage: 8, desc: '+8 Schaden' },
+      { name: 'Boots', cost: 90, bonusSpeed: 18, desc: '+18 Tempo' },
+      { name: 'Orb', cost: 100, bonusMana: 40, bonusRegen: 2, desc: '+Mana, +Regen' },
+      { name: 'Hide', cost: 110, bonusHp: 70, desc: '+70 Leben' },
+      { name: 'Fang', cost: 160, bonusDamage: 14, bonusHp: 40, desc: 'Hybrid' },
+    ];
+
+    function buildControls() {
+      skillsEl.innerHTML = '';
+      state.player.skills.forEach((skill, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'skill';
+        btn.dataset.skillIndex = String(i);
+        btn.onmousedown = (e) => e.stopPropagation();
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          tryCastSkill(state.player, i);
+        };
+        skillsEl.appendChild(btn);
+      });
+
+      shopEl.innerHTML = '';
+      SHOP_ITEMS.forEach((item, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'shopItem';
+        btn.dataset.shopIndex = String(i);
+        btn.onmousedown = (e) => e.stopPropagation();
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          buyItem(i);
+        };
+        shopEl.appendChild(btn);
+      });
+    }
+
+    function init() {
+      resize();
+      laneY = H * 0.52;
+      state.time = 0;
+      state.lastTs = 0;
+      state.creeps = [];
+      state.projectiles = [];
+      state.effects = [];
+      state.winner = null;
+      state.spawnTimer = 0;
+      state.enemyThinkTimer = 0;
+      state.player = makeHero('left');
+      state.enemy = makeHero('right');
+      state.player.skills = SKILLS.map(s => ({ ...s, cd: 0 }));
+      state.enemy.skills = SKILLS.map(s => ({ ...s, cd: rand(0.5, 4) }));
+      buildControls();
+      spawnWave();
+      updateUI();
+      showMessage('Kampf gestartet! Jetzt kannst du dich frei im ganzen Feld bewegen.', 2.6);
+      requestAnimationFrame(loop);
+    }
+
+    function resize() {
+      const rect = document.getElementById('gameWrap').getBoundingClientRect();
+      canvas.width = Math.max(640, Math.floor(rect.width * devicePixelRatio));
+      canvas.height = Math.max(360, Math.floor(rect.height * devicePixelRatio));
+      W = canvas.width;
+      H = canvas.height;
+      laneY = H * 0.52;
+    }
+
+    function spawnWave() {
+      const leftStart = 230;
+      const rightStart = W - 230;
+      for (let i = 0; i < CONFIG.meleeCount; i++) {
+        state.creeps.push(makeCreep('left', 'melee', leftStart - i * 26, laneY + CONFIG.laneTopOffset + i * 28));
+        state.creeps.push(makeCreep('right', 'melee', rightStart + i * 26, laneY + CONFIG.laneBottomOffset - i * 28));
+      }
+      for (let i = 0; i < CONFIG.rangedCount; i++) {
+        state.creeps.push(makeCreep('left', 'ranged', leftStart - 65 - i * 20, laneY + CONFIG.laneBottomOffset));
+        state.creeps.push(makeCreep('right', 'ranged', rightStart + 65 + i * 20, laneY + CONFIG.laneTopOffset));
+      }
+    }
+
+    function makeCreep(side, role, x, y) {
+      const melee = role === 'melee';
+      return {
+        type: 'creep',
+        role,
+        side,
+        x,
+        y,
+        radius: melee ? 14 : 12,
+        hp: melee ? 88 : 62,
+        maxHp: melee ? 88 : 62,
+        damage: melee ? 11 : 9,
+        range: melee ? 28 : 145,
+        speed: melee ? 36 : 28,
+        attackCd: rand(0, 0.4),
+        attackSpeed: melee ? 1.05 : 1.25,
+        dead: false,
+      };
+    }
+
+    function getOpposingUnits(side) {
+      const hero = side === 'left' ? state.enemy : state.player;
+      const creeps = state.creeps.filter(c => c.side !== side && !c.dead);
+      return hero.dead ? creeps : [hero, ...creeps];
+    }
+
+    function getFriendlyUnits(side) {
+      const hero = side === 'left' ? state.player : state.enemy;
+      const creeps = state.creeps.filter(c => c.side === side && !c.dead);
+      return hero.dead ? creeps : [hero, ...creeps];
+    }
+
+    function findNearestTarget(unit, maxRange = Infinity, preferHero = false) {
+      const enemies = getOpposingUnits(unit.side);
+      let best = null;
+      let bestDist = Infinity;
+      if (preferHero) {
+        const hero = unit.side === 'left' ? state.enemy : state.player;
+        if (!hero.dead && dist(unit, hero) <= maxRange) return hero;
+      }
+      for (const target of enemies) {
+        if (target.dead) continue;
+        const d = dist(unit, target);
+        if (d < bestDist && d <= maxRange) {
+          bestDist = d;
+          best = target;
+        }
+      }
+      return best;
+    }
+
+    function damageUnit(unit, amount, source) {
+      if (unit.dead) return;
+      unit.hp -= amount;
+      burst(unit.x, unit.y, '#ffffff', 4, amount);
+      if (unit.hp <= 0) {
+        unit.hp = 0;
+        unit.dead = true;
+        onUnitKilled(unit, source);
+      }
+    }
+
+    function healUnit(unit, amount) {
+      const stats = unit.type === 'hero' ? heroStatsWithItems(unit) : unit;
+      unit.hp = clamp(unit.hp + amount, 0, stats.maxHp || unit.maxHp);
+    }
+
+    function onUnitKilled(unit, killer) {
+      burst(unit.x, unit.y, unit.side === 'left' ? COLORS.ally : COLORS.enemy, 16);
+      cameraShake = 4;
+
+      if (!killer) return;
+      if (unit.type === 'creep' && killer.type === 'hero') {
+        const gold = unit.role === 'melee' ? CONFIG.pointsPerMelee : CONFIG.pointsPerRanged;
+        const exp = unit.role === 'melee' ? CONFIG.expPerMelee : CONFIG.expPerRanged;
+        gainGold(killer, gold);
+        gainExp(killer, exp);
+      }
+
+      if (unit.type === 'hero') {
+        unit.deaths += 1;
+        if (killer.type === 'hero') {
+          killer.kills += 1;
+          gainGold(killer, CONFIG.heroKillGold);
+          gainExp(killer, CONFIG.heroKillExp);
+        }
+        unit.respawnTimer = 7;
+        if (killer === state.player) showMessage('Gegnerischer Dämon besiegt!', 1.8);
+        if (killer === state.enemy) showMessage('Du wurdest besiegt!', 1.8);
+      }
+    }
+
+    function gainGold(hero, amount) {
+      hero.gold += amount;
+    }
+
+    function gainExp(hero, amount) {
+      hero.exp += amount;
+      while (hero.exp >= xpToNext(hero.level)) {
+        hero.exp -= xpToNext(hero.level);
+        hero.level += 1;
+        hero.maxHp += 30;
+        hero.maxMana += 18;
+        hero.attackDamage += 4;
+        hero.hp += 30;
+        hero.mana += 18;
+        showMessage((hero === state.player ? 'Level Up! ' : 'Gegner Level Up! ') + 'Level ' + hero.level, 1.4);
+      }
+    }
+
+    function faceTowards(unit, x, y) {
+      const dx = x - unit.x;
+      const dy = y - unit.y;
+      if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+        unit.facing = Math.atan2(dy, dx);
+      }
+    }
+
+    function moveHeroTowards(hero, tx, ty, speed, dt) {
+      const dx = tx - hero.x;
+      const dy = ty - hero.y;
+      const d = Math.hypot(dx, dy);
+      if (d <= 1) return;
+      const step = Math.min(d, speed * dt);
+      hero.x += (dx / d) * step;
+      hero.y += (dy / d) * step;
+      faceTowards(hero, tx, ty);
+    }
+
+    function keepUnitInArena(unit) {
+      unit.x = clamp(unit.x, CONFIG.arenaPadding, W - CONFIG.arenaPadding);
+      unit.y = clamp(unit.y, CONFIG.arenaPadding, H - CONFIG.arenaPadding);
+    }
+
+    function updateHero(hero, dt, controlled = false) {
+      if (hero.dead) {
+        hero.respawnTimer -= dt;
+        if (hero.respawnTimer <= 0) {
+          hero.dead = false;
+          hero.hp = hero.maxHp;
+          hero.mana = hero.maxMana;
+          hero.x = hero.side === 'left' ? 170 : W - 170;
+          hero.y = laneY;
+          hero.moveTargetX = hero.x;
+          hero.moveTargetY = hero.y;
+        }
+        return;
+      }
+
+      const stats = heroStatsWithItems(hero);
+      if (hero.buff) {
+        hero.buff.timer -= dt;
+        if (hero.buff.timer <= 0) hero.buff = null;
+      }
+      const buffDamage = hero.buff ? hero.buff.damage : 0;
+      const buffSpeed = hero.buff ? hero.buff.speed : 0;
+      const finalMoveSpeed = stats.moveSpeed + buffSpeed;
+
+      hero.mana = clamp(hero.mana + (stats.manaRegen * dt), 0, stats.maxMana);
+      hero.attackCd = Math.max(0, hero.attackCd - dt);
+      for (const s of hero.skills) s.cd = Math.max(0, s.cd - dt);
+
+      if (controlled) {
+        if (state.input.moving) {
+          hero.moveTargetX = state.input.mouseX;
+          hero.moveTargetY = state.input.mouseY;
+        }
+        moveHeroTowards(hero, hero.moveTargetX, hero.moveTargetY, finalMoveSpeed, dt);
+      } else {
+        enemyAI(hero, dt);
+      }
+
+      keepUnitInArena(hero);
+
+      const target = findNearestTarget(hero, hero.attackRange + 6);
+      if (target) {
+        faceTowards(hero, target.x, target.y);
+      }
+      if (target && hero.attackCd <= 0) {
+        hero.attackCd = hero.attackSpeed;
+        damageUnit(target, stats.attackDamage + buffDamage, hero);
+      }
+    }
+
+    function enemyAI(hero, dt) {
+      state.enemyThinkTimer -= dt;
+      const stats = heroStatsWithItems(hero);
+      const target = findNearestTarget(hero, 350, true);
+      const player = state.player;
+      const finalMoveSpeed = stats.moveSpeed + (hero.buff ? hero.buff.speed : 0);
+
+      if (target) {
+        const d = dist(hero, target);
+        if (d > hero.attackRange * 0.85) {
+          moveHeroTowards(hero, target.x, target.y, finalMoveSpeed * 0.72, dt);
+        } else {
+          faceTowards(hero, target.x, target.y);
+        }
+      } else {
+        moveHeroTowards(hero, W * 0.72, laneY, finalMoveSpeed * 0.45, dt);
+      }
+
+      keepUnitInArena(hero);
+
+      if (state.enemyThinkTimer <= 0) {
+        state.enemyThinkTimer = rand(0.6, 1.4);
+        const lowHp = hero.hp / heroStatsWithItems(hero).maxHp < 0.42;
+        const playerNear = !player.dead && dist(hero, player) < 170;
+
+        if (playerNear && hero.skills[2].cd <= 0) tryCastSkill(hero, 2);
+        else if (playerNear && hero.skills[1].cd <= 0) tryCastSkill(hero, 1);
+        else if (findNearestTarget(hero, 330) && hero.skills[0].cd <= 0) tryCastSkill(hero, 0);
+        else if (!lowHp && playerNear && hero.skills[3].cd <= 0) tryCastSkill(hero, 3);
+      }
+    }
+
+    function tryCastSkill(hero, index) {
+      const skill = hero.skills[index];
+      if (!skill || skill.cd > 0 || hero.dead) return false;
+      if (hero.mana < skill.cost) return false;
+      const success = skill.use(hero, hero.side === 'left' ? state.enemy : state.player);
+      if (success) {
+        hero.mana -= skill.cost;
+        skill.cd = skill.cooldown;
+      }
+      return success;
+    }
+
+    function updateCreep(creep, dt) {
+      if (creep.dead) return;
+      creep.attackCd = Math.max(0, creep.attackCd - dt);
+      const target = findNearestTarget(creep, creep.range + 5);
+      if (target) {
+        if (dist(creep, target) <= creep.range + 5) {
+          if (creep.attackCd <= 0) {
+            creep.attackCd = creep.attackSpeed;
+            if (creep.role === 'ranged') {
+              state.projectiles.push({
+                from: creep,
+                target,
+                x: creep.x,
+                y: creep.y,
+                speed: 220,
+                radius: 4,
+                damage: creep.damage,
+                color: creep.side === 'left' ? COLORS.ally2 : COLORS.enemy2,
+                kind: 'arrow'
+              });
+            } else {
+              damageUnit(target, creep.damage, creep);
+            }
+          }
+        }
+      }
+
+      if (!target || dist(creep, target) > creep.range) {
+        const dir = creep.side === 'left' ? 1 : -1;
+        creep.x += dir * creep.speed * dt;
+        creep.y += (laneY - creep.y) * dt * 1.4;
+      }
+    }
+
+    function updateProjectiles(dt) {
+      for (let i = state.projectiles.length - 1; i >= 0; i--) {
+        const p = state.projectiles[i];
+        if (!p.target || p.target.dead) {
+          state.projectiles.splice(i, 1);
+          continue;
+        }
+        const dx = p.target.x - p.x;
+        const dy = p.target.y - p.y;
+        const d = Math.hypot(dx, dy);
+        if (d < p.speed * dt + p.target.radius) {
+          damageUnit(p.target, p.damage, p.from);
+          burst(p.x, p.y, p.color, 5);
+          state.projectiles.splice(i, 1);
+        } else {
+          p.x += (dx / d) * p.speed * dt;
+          p.y += (dy / d) * p.speed * dt;
+        }
+      }
+    }
+
+    function burst(x, y, color, count, number = null) {
+      for (let i = 0; i < count; i++) {
+        state.effects.push({
+          x, y,
+          vx: rand(-45, 45),
+          vy: rand(-60, 30),
+          life: rand(0.25, 0.6),
+          t: 0,
+          color,
+          size: rand(2, 4),
+        });
+      }
+      if (number !== null) {
+        state.effects.push({
+          x, y: y - 14,
+          vy: -30,
+          life: 0.7,
+          t: 0,
+          text: Math.round(number),
+          color: '#ffffff',
+        });
+      }
+    }
+
+    function updateEffects(dt) {
+      for (let i = state.effects.length - 1; i >= 0; i--) {
+        const e = state.effects[i];
+        e.t += dt;
+        if (e.t >= e.life) state.effects.splice(i, 1);
+        else {
+          e.x += (e.vx || 0) * dt;
+          e.y += (e.vy || 0) * dt;
+        }
+      }
+    }
+
+    function buyItem(index) {
+      const item = SHOP_ITEMS[index];
+      const hero = state.player;
+      if (!item) return;
+      if (hero.gold < item.cost) {
+        showMessage('Nicht genug Gold für ' + item.name, 1.2);
+        return;
+      }
+      hero.gold -= item.cost;
+      hero.items.push(item);
+      showMessage(item.name + ' gekauft', 1.1);
+    }
+
+    function update(dt) {
+      if (state.winner) return;
+      state.time += dt;
+      state.spawnTimer += dt;
+      if (state.spawnTimer >= CONFIG.creepSpawnEvery) {
+        state.spawnTimer = 0;
+        spawnWave();
+        showMessage('Neue Creep-Wave!', 0.9);
+      }
+
+      updateHero(state.player, dt, true);
+      updateHero(state.enemy, dt, false);
+
+      for (const creep of state.creeps) updateCreep(creep, dt);
+      state.creeps = state.creeps.filter(c => !c.dead || c.type === 'hero' || c.hp > 0);
+
+      updateProjectiles(dt);
+      updateEffects(dt);
+
+      if (state.uiMessageTimer > 0) {
+        state.uiMessageTimer -= dt;
+        if (state.uiMessageTimer <= 0) messageEl.classList.remove('show');
+      }
+
+      if (cameraShake > 0) cameraShake = Math.max(0, cameraShake - dt * 12);
+
+      if (state.player.kills >= 5) state.winner = 'player';
+      if (state.enemy.kills >= 5) state.winner = 'enemy';
+      if (state.winner === 'player') showMessage('Sieg! Du hast 5 Kills erreicht.', 999);
+      if (state.winner === 'enemy') showMessage('Niederlage! Gegner hat 5 Kills erreicht.', 999);
+
+      updateUI();
+    }
+
+    function drawArena() {
+      ctx.fillStyle = COLORS.grass;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = '#171d30';
+      ctx.fillRect(CONFIG.arenaPadding, CONFIG.arenaPadding, W - CONFIG.arenaPadding * 2, H - CONFIG.arenaPadding * 2);
+
+      ctx.strokeStyle = '#334060';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(CONFIG.arenaPadding, CONFIG.arenaPadding, W - CONFIG.arenaPadding * 2, H - CONFIG.arenaPadding * 2);
+
+      ctx.strokeStyle = COLORS.bgLine;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(CONFIG.arenaPadding, laneY);
+      ctx.lineTo(W - CONFIG.arenaPadding, laneY);
+      ctx.stroke();
+
+      ctx.setLineDash([16, 14]);
+      ctx.strokeStyle = '#485373';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(W / 2, CONFIG.arenaPadding);
+      ctx.lineTo(W / 2, H - CONFIG.arenaPadding);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function drawTriangleHero(unit, main, accent) {
+      ctx.save();
+      ctx.translate(unit.x, unit.y);
+      ctx.rotate(unit.facing);
+      ctx.fillStyle = main;
+      ctx.beginPath();
+      ctx.moveTo(20, 0);
+      ctx.lineTo(-14, -14);
+      ctx.lineTo(-9, 0);
+      ctx.lineTo(-14, 14);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.moveTo(8, 0);
+      ctx.lineTo(-6, -6);
+      ctx.lineTo(-2, 0);
+      ctx.lineTo(-6, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawUnit(unit) {
+      if (unit.dead && unit.type !== 'hero') return;
+      if (unit.type === 'hero' && unit.dead) {
+        ctx.globalAlpha = 0.25;
+      }
+
+      const isLeft = unit.side === 'left';
+      const main = isLeft ? COLORS.ally : COLORS.enemy;
+      const accent = isLeft ? '#dffcf7' : '#ffe2e2';
+
+      if (unit.type === 'hero') {
+        if (unit === state.player) {
+          drawTriangleHero(unit, main, accent);
+        } else {
+          ctx.fillStyle = main;
+          ctx.fillRect(unit.x - 16, unit.y - 16, 32, 32);
+          ctx.fillStyle = accent;
+          ctx.fillRect(unit.x - 7, unit.y - 7, 14, 14);
+        }
+        if (unit.buff) {
+          ctx.strokeStyle = '#fff0a8';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(unit.x - 22, unit.y - 22, 44, 44);
+        }
+      } else {
+        if (unit.role === 'melee') {
+          ctx.fillStyle = main;
+          ctx.fillRect(unit.x - 11, unit.y - 11, 22, 22);
+          ctx.fillStyle = accent;
+          ctx.fillRect(unit.x - 5, unit.y - 5, 10, 10);
+        } else {
+          ctx.fillStyle = main;
+          ctx.fillRect(unit.x - 9, unit.y - 9, 18, 18);
+          ctx.fillStyle = accent;
+          ctx.fillRect(unit.x - 3, unit.y - 13, 6, 26);
+        }
+      }
+
+      const maxHp = unit.type === 'hero' ? heroStatsWithItems(unit).maxHp : unit.maxHp;
+      const hpPct = clamp(unit.hp / maxHp, 0, 1);
+      ctx.fillStyle = '#0b0f18';
+      ctx.fillRect(unit.x - 18, unit.y - 28, 36, 5);
+      ctx.fillStyle = '#7cff90';
+      ctx.fillRect(unit.x - 18, unit.y - 28, 36 * hpPct, 5);
+      ctx.globalAlpha = 1;
+    }
+
+    function drawProjectiles() {
+      for (const p of state.projectiles) {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - p.radius, p.y - p.radius, p.radius * 2, p.radius * 2);
+      }
+    }
+
+    function drawEffects() {
+      for (const e of state.effects) {
+        const alpha = 1 - e.t / e.life;
+        ctx.globalAlpha = alpha;
+        if (e.text !== undefined) {
+          ctx.fillStyle = e.color;
+          ctx.font = 'bold 14px Arial';
+          ctx.fillText(String(e.text), e.x, e.y);
+        } else {
+          ctx.fillStyle = e.color;
+          ctx.fillRect(e.x, e.y, e.size, e.size);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawHUDMarkers() {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 18px Arial';
+      ctx.fillText('PLAYER SIDE', 28, 36);
+      const textWidth = ctx.measureText('ENEMY SIDE').width;
+      ctx.fillText('ENEMY SIDE', W - textWidth - 28, 36);
+    }
+
+    function render() {
+      ctx.save();
+      if (cameraShake > 0) {
+        ctx.translate(rand(-cameraShake, cameraShake), rand(-cameraShake, cameraShake));
+      }
+
+      drawArena();
+      drawUnit(state.player);
+      drawUnit(state.enemy);
+      for (const creep of state.creeps) drawUnit(creep);
+      drawProjectiles();
+      drawEffects();
+      drawHUDMarkers();
+      ctx.restore();
+    }
+
+    function updateUI() {
+      const p = state.player;
+      const e = state.enemy;
+      const ps = heroStatsWithItems(p);
+      const es = heroStatsWithItems(e);
+
+      playerHpFill.style.width = (100 * p.hp / ps.maxHp) + '%';
+      playerManaFill.style.width = (100 * p.mana / ps.maxMana) + '%';
+      enemyHpFill.style.width = (100 * e.hp / es.maxHp) + '%';
+      enemyManaFill.style.width = (100 * e.mana / es.maxMana) + '%';
+
+      playerText.textContent = `HP ${Math.ceil(p.hp)}/${ps.maxHp} | Mana ${Math.ceil(p.mana)}/${ps.maxMana} | AD ${ps.attackDamage}`;
+      enemyText.textContent = `HP ${Math.ceil(e.hp)}/${es.maxHp} | Mana ${Math.ceil(e.mana)}/${es.maxMana} | AD ${es.attackDamage}`;
+
+      statsEl.innerHTML = `
+        <div class="pill">Level <strong>${p.level}</strong></div>
+        <div class="pill">XP <strong>${p.exp}</strong> / ${xpToNext(p.level)}</div>
+        <div class="pill">Gold <strong>${p.gold}</strong></div>
+        <div class="pill">Kills <strong>${p.kills}</strong> / 5</div>
+        <div class="pill">Items <strong>${p.items.length}</strong></div>
+      `;
+
+      const skillButtons = skillsEl.querySelectorAll('button');
+      skillButtons.forEach((btn, i) => {
+        const skill = p.skills[i];
+        btn.disabled = p.dead || skill.cd > 0 || p.mana < skill.cost || !!state.winner;
+        btn.innerHTML = `<div>${skill.key} · ${skill.name}</div><small>${skill.cd > 0 ? 'CD ' + skill.cd.toFixed(1) + 's' : skill.cost + ' Mana'}</small>`;
+      });
+
+      const shopButtons = shopEl.querySelectorAll('button');
+      shopButtons.forEach((btn, i) => {
+        const item = SHOP_ITEMS[i];
+        btn.disabled = p.gold < item.cost || !!state.winner;
+        btn.innerHTML = `<div>${item.name} · ${item.cost}g</div><small>${item.desc}</small>`;
+      });
+    }
+
+    function loop(ts) {
+      if (!state.lastTs) state.lastTs = ts;
+      const dt = clamp((ts - state.lastTs) / 1000, 0.001, 0.033);
+      state.lastTs = ts;
+      update(dt);
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    function setPointerTarget(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      state.input.mouseX = clamp((clientX - rect.left) * scaleX, CONFIG.arenaPadding, W - CONFIG.arenaPadding);
+      state.input.mouseY = clamp((clientY - rect.top) * scaleY, CONFIG.arenaPadding, H - CONFIG.arenaPadding);
+    }
+
+    window.addEventListener('resize', resize);
+
+    window.addEventListener('keydown', (e) => {
+      const key = e.key.toUpperCase();
+      const index = SKILLS.findIndex(s => s.key === key);
+      if (index >= 0) tryCastSkill(state.player, index);
+    });
+
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    canvas.addEventListener('mousedown', (e) => {
+      setPointerTarget(e.clientX, e.clientY);
+      state.input.moving = true;
+      state.player.moveTargetX = state.input.mouseX;
+      state.player.moveTargetY = state.input.mouseY;
+    });
+
+    window.addEventListener('mouseup', () => {
+      state.input.moving = false;
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      setPointerTarget(e.clientX, e.clientY);
+      if (state.input.moving) {
+        state.player.moveTargetX = state.input.mouseX;
+        state.player.moveTargetY = state.input.mouseY;
+      }
+    });
+
+    canvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length > 0) {
+        const t = e.touches[0];
+        setPointerTarget(t.clientX, t.clientY);
+        state.input.moving = true;
+        state.player.moveTargetX = state.input.mouseX;
+        state.player.moveTargetY = state.input.mouseY;
+      }
+    }, { passive: true });
+
+    canvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length > 0) {
+        const t = e.touches[0];
+        setPointerTarget(t.clientX, t.clientY);
+        state.player.moveTargetX = state.input.mouseX;
+        state.player.moveTargetY = state.input.mouseY;
+      }
+    }, { passive: true });
+
+    canvas.addEventListener('touchend', () => {
+      state.input.moving = false;
+    }, { passive: true });
+
+    restartBtn.addEventListener('click', init);
+
+    init();
+  </script>
+</body>
+</html>
