@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Daemon Hunter - Lane Battle Prototype</title>
+  <title>Daemon Hunter - Lane Battle Prototype V2</title>
   <style>
     :root {
       --bg: #10121c;
@@ -84,6 +84,7 @@
     }
 
     button:active { transform: translateY(1px); }
+
     button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -114,6 +115,7 @@
       justify-content: space-between;
       gap: 10px;
       pointer-events: none;
+      z-index: 8;
     }
 
     .heroBar {
@@ -121,7 +123,8 @@
       border: 1px solid rgba(255,255,255,0.1);
       border-radius: 14px;
       padding: 8px;
-      width: min(280px, 43vw);
+      width: min(290px, 43vw);
+      backdrop-filter: blur(2px);
     }
 
     .heroBar h3 {
@@ -168,9 +171,8 @@
     }
 
     .skill {
-      min-width: 92px;
+      min-width: 100px;
       text-align: center;
-      position: relative;
     }
 
     .skill small, .shopItem small {
@@ -181,24 +183,26 @@
     }
 
     .shopItem {
-      min-width: 140px;
+      min-width: 145px;
       text-align: left;
     }
 
     .message {
       position: absolute;
       left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(8, 10, 16, 0.88);
+      top: 14px;
+      transform: translateX(-50%);
+      background: rgba(8, 10, 16, 0.92);
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 18px;
-      padding: 16px;
-      width: min(90vw, 520px);
+      padding: 10px 14px;
+      width: min(82vw, 520px);
       text-align: center;
       pointer-events: none;
       opacity: 0;
       transition: opacity 0.25s ease;
+      z-index: 15;
+      font-weight: 700;
     }
 
     .message.show { opacity: 1; }
@@ -251,8 +255,8 @@
       <div>
         <div class="skillRow" id="skills"></div>
         <div class="help" style="margin-top: 8px;">
-          Mobile: Tippe auf Skills unten. Desktop: Q / W / E / R. <br>
-          Dein Dämon bewegt sich automatisch leicht Richtung Lane-Mitte und greift nahe Ziele von selbst an.
+          Desktop: Q / W / E / R oder Buttons. Klicken setzt ein Ziel, gedrückt halten/ziehen bewegt live. <br>
+          Mobile: Tippen oder ziehen im Feld. Beide Dämonen bewegen sich frei im ganzen Rechteck.
         </div>
       </div>
       <div>
@@ -293,6 +297,7 @@
       enemyThinkTimer: 0,
       player: null,
       enemy: null,
+      rafId: 0,
       input: {
         mouseX: 0,
         mouseY: 0,
@@ -325,7 +330,104 @@
       neutral: '#d9d9e3',
       bgLine: '#29314a',
       grass: '#0f1524',
+      drain: '#b38cff',
+      overdrive: '#fff0a8',
     };
+
+    const SKILLS = [
+      {
+        key: 'Q',
+        name: 'Shadow Bolt',
+        cost: 24,
+        cooldown: 2.5,
+        desc: 'Schießt ein Projektil auf das nächste Ziel.',
+        use(caster) {
+          const target = findNearestTarget(caster, 360);
+          if (!target) return false;
+          faceTowards(caster, target.x, target.y);
+          state.projectiles.push({
+            from: caster,
+            target,
+            x: caster.x,
+            y: caster.y,
+            speed: 360,
+            radius: 10,
+            damage: 42 + caster.level * 6,
+            color: caster.side === 'left' ? COLORS.ally2 : COLORS.enemy2,
+            kind: 'bolt',
+            trail: []
+          });
+          burst(caster.x, caster.y, caster.side === 'left' ? COLORS.ally2 : COLORS.enemy2, 10);
+          return true;
+        }
+      },
+      {
+        key: 'W',
+        name: 'Soul Burst',
+        cost: 36,
+        cooldown: 5.5,
+        desc: 'Flächenschaden um deinen Dämon.',
+        use(caster) {
+          const radius = 110;
+          let hit = false;
+          ring(caster.x, caster.y, radius, caster.side === 'left' ? COLORS.ally : COLORS.enemy);
+          const enemies = getOpposingUnits(caster.side);
+          for (const unit of enemies) {
+            if (unit.dead) continue;
+            if (dist(caster, unit) <= radius) {
+              damageUnit(unit, 36 + caster.level * 7, caster);
+              hit = true;
+            }
+          }
+          burst(caster.x, caster.y, caster.side === 'left' ? COLORS.ally : COLORS.enemy, 18);
+          cameraShake = 6;
+          return hit;
+        }
+      },
+      {
+        key: 'E',
+        name: 'Drain',
+        cost: 30,
+        cooldown: 7,
+        desc: 'Schadet einem Ziel und heilt dich.',
+        use(caster) {
+          const target = findNearestTarget(caster, 190, true);
+          if (!target) return false;
+          faceTowards(caster, target.x, target.y);
+          const amount = 48 + caster.level * 5;
+          beam(caster.x, caster.y, target.x, target.y, COLORS.drain);
+          damageUnit(target, amount, caster);
+          healUnit(caster, amount * 0.55);
+          burst(target.x, target.y, COLORS.drain, 10);
+          return true;
+        }
+      },
+      {
+        key: 'R',
+        name: 'Overdrive',
+        cost: 48,
+        cooldown: 12,
+        desc: 'Kurz Buff auf Schaden und Tempo.',
+        use(caster) {
+          caster.buff = {
+            timer: 5,
+            damage: 14,
+            speed: 24,
+          };
+          burst(caster.x, caster.y, COLORS.overdrive, 14);
+          ring(caster.x, caster.y, 38, COLORS.overdrive, 0.3);
+          return true;
+        }
+      }
+    ];
+
+    const SHOP_ITEMS = [
+      { name: 'Claw', cost: 80, bonusDamage: 8, desc: '+8 Schaden' },
+      { name: 'Boots', cost: 90, bonusSpeed: 90, desc: '+90 Tempo' },
+      { name: 'Orb', cost: 100, bonusMana: 40, bonusRegen: 2, desc: '+Mana, +Regen' },
+      { name: 'Hide', cost: 110, bonusHp: 70, desc: '+70 Leben' },
+      { name: 'Fang', cost: 160, bonusDamage: 14, bonusHp: 40, desc: 'Hybrid' },
+    ];
 
     function clamp(v, min, max) {
       return Math.max(min, Math.min(max, v));
@@ -360,8 +462,6 @@
         side,
         x: baseX,
         y: laneY,
-        vx: 0,
-        vy: 0,
         radius: 22,
         facing: isPlayer ? 0 : Math.PI,
         moveTargetX: baseX,
@@ -382,10 +482,10 @@
         kills: 0,
         deaths: 0,
         items: [],
-        skillPointsSpent: 0,
         dead: false,
         respawnTimer: 0,
         buff: null,
+        skills: [],
       };
     }
 
@@ -411,103 +511,11 @@
       };
     }
 
-    const SKILLS = [
-      {
-        key: 'Q',
-        name: 'Shadow Bolt',
-        cost: 24,
-        cooldown: 2.5,
-        desc: 'Schießt ein Projektil auf das nächste Ziel.',
-        use(caster, enemyHero) {
-          const target = findNearestTarget(caster, 340);
-          if (!target) return false;
-          faceTowards(caster, target.x, target.y);
-          state.projectiles.push({
-            from: caster,
-            target,
-            x: caster.x,
-            y: caster.y - 10,
-            speed: 320,
-            radius: 6,
-            damage: 42 + caster.level * 6,
-            color: caster.side === 'left' ? COLORS.ally2 : COLORS.enemy2,
-            kind: 'bolt'
-          });
-          burst(caster.x, caster.y - 10, caster.side === 'left' ? COLORS.ally2 : COLORS.enemy2, 8);
-          return true;
-        }
-      },
-      {
-        key: 'W',
-        name: 'Soul Burst',
-        cost: 36,
-        cooldown: 5.5,
-        desc: 'Flächenschaden um deinen Dämon.',
-        use(caster) {
-          const radius = 110;
-          let hit = false;
-          const enemies = getOpposingUnits(caster.side);
-          for (const unit of enemies) {
-            if (unit.dead) continue;
-            if (dist(caster, unit) <= radius) {
-              damageUnit(unit, 36 + caster.level * 7, caster);
-              hit = true;
-            }
-          }
-          burst(caster.x, caster.y, caster.side === 'left' ? COLORS.ally : COLORS.enemy, 18);
-          cameraShake = 6;
-          return hit;
-        }
-      },
-      {
-        key: 'E',
-        name: 'Drain',
-        cost: 30,
-        cooldown: 7,
-        desc: 'Schadet einem Ziel und heilt dich.',
-        use(caster) {
-          const target = findNearestTarget(caster, 180, true);
-          if (!target) return false;
-          faceTowards(caster, target.x, target.y);
-          const amount = 48 + caster.level * 5;
-          damageUnit(target, amount, caster);
-          healUnit(caster, amount * 0.55);
-          burst(target.x, target.y, '#b38cff', 10);
-          return true;
-        }
-      },
-      {
-        key: 'R',
-        name: 'Overdrive',
-        cost: 48,
-        cooldown: 12,
-        desc: 'Kurz Buff auf Schaden und Tempo.',
-        use(caster) {
-          caster.buff = {
-            timer: 5,
-            damage: 14,
-            speed: 24,
-          };
-          burst(caster.x, caster.y, '#fff0a8', 14);
-          return true;
-        }
-      }
-    ];
-
-    const SHOP_ITEMS = [
-      { name: 'Claw', cost: 80, bonusDamage: 8, desc: '+8 Schaden' },
-      { name: 'Boots', cost: 90, bonusSpeed: 18, desc: '+18 Tempo' },
-      { name: 'Orb', cost: 100, bonusMana: 40, bonusRegen: 2, desc: '+Mana, +Regen' },
-      { name: 'Hide', cost: 110, bonusHp: 70, desc: '+70 Leben' },
-      { name: 'Fang', cost: 160, bonusDamage: 14, bonusHp: 40, desc: 'Hybrid' },
-    ];
-
     function buildControls() {
       skillsEl.innerHTML = '';
       state.player.skills.forEach((skill, i) => {
         const btn = document.createElement('button');
         btn.className = 'skill';
-        btn.dataset.skillIndex = String(i);
         const triggerSkill = (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -522,7 +530,6 @@
       SHOP_ITEMS.forEach((item, i) => {
         const btn = document.createElement('button');
         btn.className = 'shopItem';
-        btn.dataset.shopIndex = String(i);
         const triggerBuy = (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -537,6 +544,7 @@
     function init() {
       resize();
       laneY = H * 0.52;
+      if (state.rafId) cancelAnimationFrame(state.rafId);
       state.time = 0;
       state.lastTs = 0;
       state.creeps = [];
@@ -552,8 +560,8 @@
       buildControls();
       spawnWave();
       updateUI();
-      showMessage('Kampf gestartet! Jetzt kannst du dich frei im ganzen Feld bewegen.', 2.6);
-      requestAnimationFrame(loop);
+      showMessage('V2 geladen! Freie Bewegung, sichtbare Skills, Boots-Speed und zwei Dreiecke.', 2.8);
+      state.rafId = requestAnimationFrame(loop);
     }
 
     function resize() {
@@ -604,20 +612,16 @@
       return hero.dead ? creeps : [hero, ...creeps];
     }
 
-    function getFriendlyUnits(side) {
-      const hero = side === 'left' ? state.player : state.enemy;
-      const creeps = state.creeps.filter(c => c.side === side && !c.dead);
-      return hero.dead ? creeps : [hero, ...creeps];
-    }
-
     function findNearestTarget(unit, maxRange = Infinity, preferHero = false) {
       const enemies = getOpposingUnits(unit.side);
       let best = null;
       let bestDist = Infinity;
+
       if (preferHero) {
         const hero = unit.side === 'left' ? state.enemy : state.player;
         if (!hero.dead && dist(unit, hero) <= maxRange) return hero;
       }
+
       for (const target of enemies) {
         if (target.dead) continue;
         const d = dist(unit, target);
@@ -650,6 +654,7 @@
       cameraShake = 4;
 
       if (!killer) return;
+
       if (unit.type === 'creep' && killer.type === 'hero') {
         const gold = unit.role === 'melee' ? CONFIG.pointsPerMelee : CONFIG.pointsPerRanged;
         const exp = unit.role === 'melee' ? CONFIG.expPerMelee : CONFIG.expPerRanged;
@@ -712,6 +717,18 @@
       unit.y = clamp(unit.y, CONFIG.arenaPadding, H - CONFIG.arenaPadding);
     }
 
+    function tryCastSkill(hero, index) {
+      const skill = hero.skills[index];
+      if (!skill || skill.cd > 0 || hero.dead) return false;
+      if (hero.mana < skill.cost) return false;
+      const success = skill.use(hero, hero.side === 'left' ? state.enemy : state.player);
+      if (success) {
+        hero.mana -= skill.cost;
+        skill.cd = skill.cooldown;
+      }
+      return success;
+    }
+
     function updateHero(hero, dt, controlled = false) {
       if (hero.dead) {
         hero.respawnTimer -= dt;
@@ -732,11 +749,12 @@
         hero.buff.timer -= dt;
         if (hero.buff.timer <= 0) hero.buff = null;
       }
+
       const buffDamage = hero.buff ? hero.buff.damage : 0;
       const buffSpeed = hero.buff ? hero.buff.speed : 0;
       const finalMoveSpeed = stats.moveSpeed + buffSpeed;
 
-      hero.mana = clamp(hero.mana + (stats.manaRegen * dt), 0, stats.maxMana);
+      hero.mana = clamp(hero.mana + stats.manaRegen * dt, 0, stats.maxMana);
       hero.attackCd = Math.max(0, hero.attackCd - dt);
       for (const s of hero.skills) s.cd = Math.max(0, s.cd - dt);
 
@@ -753,9 +771,7 @@
       keepUnitInArena(hero);
 
       const target = findNearestTarget(hero, hero.attackRange + 6);
-      if (target) {
-        faceTowards(hero, target.x, target.y);
-      }
+      if (target) faceTowards(hero, target.x, target.y);
       if (target && hero.attackCd <= 0) {
         hero.attackCd = hero.attackSpeed;
         damageUnit(target, stats.attackDamage + buffDamage, hero);
@@ -765,13 +781,13 @@
     function enemyAI(hero, dt) {
       state.enemyThinkTimer -= dt;
       const stats = heroStatsWithItems(hero);
-      const target = findNearestTarget(hero, 350, true);
+      const target = findNearestTarget(hero, 360, true);
       const player = state.player;
       const finalMoveSpeed = stats.moveSpeed + (hero.buff ? hero.buff.speed : 0);
 
       if (target) {
         const d = dist(hero, target);
-        if (d > hero.attackRange * 0.85) {
+        if (d > hero.attackRange * 0.9) {
           moveHeroTowards(hero, target.x, target.y, finalMoveSpeed * 0.72, dt);
         } else {
           faceTowards(hero, target.x, target.y);
@@ -794,18 +810,6 @@
       }
     }
 
-    function tryCastSkill(hero, index) {
-      const skill = hero.skills[index];
-      if (!skill || skill.cd > 0 || hero.dead) return false;
-      if (hero.mana < skill.cost) return false;
-      const success = skill.use(hero, hero.side === 'left' ? state.enemy : state.player);
-      if (success) {
-        hero.mana -= skill.cost;
-        skill.cd = skill.cooldown;
-      }
-      return success;
-    }
-
     function updateCreep(creep, dt) {
       if (creep.dead) return;
       creep.attackCd = Math.max(0, creep.attackCd - dt);
@@ -821,10 +825,11 @@
                 x: creep.x,
                 y: creep.y,
                 speed: 220,
-                radius: 4,
+                radius: 5,
                 damage: creep.damage,
                 color: creep.side === 'left' ? COLORS.ally2 : COLORS.enemy2,
-                kind: 'arrow'
+                kind: 'arrow',
+                trail: []
               });
             } else {
               damageUnit(target, creep.damage, creep);
@@ -847,9 +852,17 @@
           state.projectiles.splice(i, 1);
           continue;
         }
+
+        p.trail = p.trail || [];
+        p.trail.push({ x: p.x, y: p.y, life: 0.18 });
+        if (p.trail.length > 8) p.trail.shift();
+        for (const t of p.trail) t.life -= dt;
+        p.trail = p.trail.filter(t => t.life > 0);
+
         const dx = p.target.x - p.x;
         const dy = p.target.y - p.y;
         const d = Math.hypot(dx, dy);
+
         if (d < p.speed * dt + p.target.radius) {
           damageUnit(p.target, p.damage, p.from);
           burst(p.x, p.y, p.color, 5);
@@ -861,9 +874,32 @@
       }
     }
 
+    function beam(x1, y1, x2, y2, color) {
+      state.effects.push({
+        kind: 'beam',
+        x1, y1, x2, y2,
+        color,
+        life: 0.18,
+        t: 0,
+      });
+    }
+
+    function ring(x, y, radius, color, life = 0.28) {
+      state.effects.push({
+        kind: 'ring',
+        x,
+        y,
+        radius,
+        color,
+        life,
+        t: 0,
+      });
+    }
+
     function burst(x, y, color, count, number = null) {
       for (let i = 0; i < count; i++) {
         state.effects.push({
+          kind: 'particle',
           x, y,
           vx: rand(-45, 45),
           vy: rand(-60, 30),
@@ -875,7 +911,9 @@
       }
       if (number !== null) {
         state.effects.push({
-          x, y: y - 14,
+          kind: 'text',
+          x,
+          y: y - 14,
           vy: -30,
           life: 0.7,
           t: 0,
@@ -889,8 +927,9 @@
       for (let i = state.effects.length - 1; i >= 0; i--) {
         const e = state.effects[i];
         e.t += dt;
-        if (e.t >= e.life) state.effects.splice(i, 1);
-        else {
+        if (e.t >= e.life) {
+          state.effects.splice(i, 1);
+        } else {
           e.x += (e.vx || 0) * dt;
           e.y += (e.vy || 0) * dt;
         }
@@ -913,6 +952,7 @@
 
     function update(dt) {
       if (state.winner) return;
+
       state.time += dt;
       state.spawnTimer += dt;
       if (state.spawnTimer >= CONFIG.creepSpawnEvery) {
@@ -925,7 +965,7 @@
       updateHero(state.enemy, dt, false);
 
       for (const creep of state.creeps) updateCreep(creep, dt);
-      state.creeps = state.creeps.filter(c => !c.dead || c.type === 'hero' || c.hp > 0);
+      state.creeps = state.creeps.filter(c => !c.dead || c.hp > 0);
 
       updateProjectiles(dt);
       updateEffects(dt);
@@ -999,25 +1039,16 @@
 
     function drawUnit(unit) {
       if (unit.dead && unit.type !== 'hero') return;
-      if (unit.type === 'hero' && unit.dead) {
-        ctx.globalAlpha = 0.25;
-      }
+      if (unit.type === 'hero' && unit.dead) ctx.globalAlpha = 0.25;
 
       const isLeft = unit.side === 'left';
       const main = isLeft ? COLORS.ally : COLORS.enemy;
       const accent = isLeft ? '#dffcf7' : '#ffe2e2';
 
       if (unit.type === 'hero') {
-        if (unit === state.player) {
-          drawTriangleHero(unit, main, accent);
-        } else {
-          ctx.fillStyle = main;
-          ctx.fillRect(unit.x - 16, unit.y - 16, 32, 32);
-          ctx.fillStyle = accent;
-          ctx.fillRect(unit.x - 7, unit.y - 7, 14, 14);
-        }
+        drawTriangleHero(unit, main, accent);
         if (unit.buff) {
-          ctx.strokeStyle = '#fff0a8';
+          ctx.strokeStyle = COLORS.overdrive;
           ctx.lineWidth = 3;
           ctx.strokeRect(unit.x - 22, unit.y - 22, 44, 44);
         }
@@ -1046,8 +1077,25 @@
 
     function drawProjectiles() {
       for (const p of state.projectiles) {
+        if (p.trail) {
+          for (const t of p.trail) {
+            ctx.globalAlpha = Math.max(0, t.life / 0.18) * 0.45;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, Math.max(2, p.radius - 2), 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        }
+
         ctx.fillStyle = p.color;
-        ctx.fillRect(p.x - p.radius, p.y - p.radius, p.radius * 2, p.radius * 2);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius + 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
       }
     }
 
@@ -1055,7 +1103,28 @@
       for (const e of state.effects) {
         const alpha = 1 - e.t / e.life;
         ctx.globalAlpha = alpha;
-        if (e.text !== undefined) {
+
+        if (e.kind === 'beam') {
+          ctx.strokeStyle = e.color;
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.moveTo(e.x1, e.y1);
+          ctx.lineTo(e.x2, e.y2);
+          ctx.stroke();
+
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(e.x1, e.y1);
+          ctx.lineTo(e.x2, e.y2);
+          ctx.stroke();
+        } else if (e.kind === 'ring') {
+          ctx.strokeStyle = e.color;
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (e.kind === 'text') {
           ctx.fillStyle = e.color;
           ctx.font = 'bold 14px Arial';
           ctx.fillText(String(e.text), e.x, e.y);
@@ -1082,11 +1151,11 @@
       }
 
       drawArena();
+      drawProjectiles();
+      drawEffects();
       drawUnit(state.player);
       drawUnit(state.enemy);
       for (const creep of state.creeps) drawUnit(creep);
-      drawProjectiles();
-      drawEffects();
       drawHUDMarkers();
       ctx.restore();
     }
@@ -1102,8 +1171,8 @@
       enemyHpFill.style.width = (100 * e.hp / es.maxHp) + '%';
       enemyManaFill.style.width = (100 * e.mana / es.maxMana) + '%';
 
-      playerText.textContent = `HP ${Math.ceil(p.hp)}/${ps.maxHp} | Mana ${Math.ceil(p.mana)}/${ps.maxMana} | AD ${ps.attackDamage}`;
-      enemyText.textContent = `HP ${Math.ceil(e.hp)}/${es.maxHp} | Mana ${Math.ceil(e.mana)}/${es.maxMana} | AD ${es.attackDamage}`;
+      playerText.textContent = `HP ${Math.ceil(p.hp)}/${ps.maxHp} | Mana ${Math.ceil(p.mana)}/${ps.maxMana} | AD ${ps.attackDamage} | SPD ${ps.moveSpeed}`;
+      enemyText.textContent = `HP ${Math.ceil(e.hp)}/${es.maxHp} | Mana ${Math.ceil(e.mana)}/${es.maxMana} | AD ${es.attackDamage} | SPD ${es.moveSpeed}`;
 
       statsEl.innerHTML = `
         <div class="pill">Level <strong>${p.level}</strong></div>
@@ -1134,7 +1203,7 @@
       state.lastTs = ts;
       update(dt);
       render();
-      requestAnimationFrame(loop);
+      state.rafId = requestAnimationFrame(loop);
     }
 
     function setPointerTarget(clientX, clientY) {
