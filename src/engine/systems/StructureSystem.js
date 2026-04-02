@@ -1,7 +1,17 @@
 import { createSiegeStructures } from '../entities/Structure.js';
 
 export function createStructureSystem({ state, CONFIG, math, targeting }) {
+  let enabled = true;
+
+  function setEnabled(next) {
+    enabled = !!next;
+    if (!enabled) {
+      state.structures = [];
+    }
+  }
+
   function buildSiegeStructures(laneY, W) {
+    if (!enabled) return [];
     return createSiegeStructures(CONFIG, W, laneY, math.rand);
   }
 
@@ -14,6 +24,7 @@ export function createStructureSystem({ state, CONFIG, math, targeting }) {
   }
 
   function isGateVulnerable() {
+    if (!enabled) return false;
     const towersAlive = getTowers().some((tower) => !tower.dead);
     const timeReached = state.time >= CONFIG.gateUnlockTime;
     const demonPressure = state.enemy.deaths >= 3;
@@ -40,6 +51,7 @@ export function createStructureSystem({ state, CONFIG, math, targeting }) {
   }
 
   function updateStructures(dt, W) {
+    if (!enabled) return;
     const gateVulnerable = isGateVulnerable();
     for (const structure of state.structures) {
       if (structure.dead) continue;
@@ -69,6 +81,7 @@ export function createStructureSystem({ state, CONFIG, math, targeting }) {
   }
 
   return {
+    setEnabled,
     buildSiegeStructures,
     getGate,
     getTowers,

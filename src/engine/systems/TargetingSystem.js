@@ -1,11 +1,12 @@
 export function createTargetingSystem(world) {
-  const { state, config, math } = world;
+  const { state, config, math, structuresEnabledRef } = world;
 
   function getGate() {
     return state.structures.find((s) => s.kind === "gate");
   }
 
   function getTowers() {
+    if (!structuresEnabledRef()) return [];
     return state.structures.filter((s) => s.kind === "tower");
   }
 
@@ -21,6 +22,7 @@ export function createTargetingSystem(world) {
   }
 
   function isGateVulnerable() {
+    if (!structuresEnabledRef()) return false;
     const towersAlive = getTowers().some((tower) => !tower.dead);
     const timeReached = state.time >= config.gateUnlockTime;
     const demonPressure = state.enemy.deaths >= 3;
@@ -28,6 +30,7 @@ export function createTargetingSystem(world) {
   }
 
   function canTargetStructure(attacker, structure) {
+    if (!structuresEnabledRef()) return false;
     if (attacker.side !== "left") return false;
     if (structure.kind === "gate") {
       if (!isGateVulnerable()) return false;

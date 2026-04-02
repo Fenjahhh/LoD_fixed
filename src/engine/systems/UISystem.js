@@ -43,8 +43,9 @@ export class UISystem {
     const e = state.enemy;
     const ps = combat.heroStats(p);
     const es = combat.heroStats(e);
-    const gate = this.engine.structures.getGate();
-    const towersAlive = this.engine.structures.getTowers().filter((t) => !t.dead).length;
+    const gate = this.engine.structures.getGate(state.level);
+    const towersAlive = this.engine.structures.getTowers(state.level).filter((t) => !t.dead).length;
+    const levelName = this.engine.getCurrentLevelName();
 
     this.ui.playerHpFill.style.width = (100 * p.hp / ps.maxHp) + '%';
     this.ui.playerManaFill.style.width = (100 * p.mana / ps.maxMana) + '%';
@@ -55,6 +56,7 @@ export class UISystem {
     this.ui.enemyText.textContent = `HP ${Math.ceil(e.hp)}/${es.maxHp} | Mana ${Math.ceil(e.mana)}/${es.maxMana} | Modus ${e.retreating ? 'Rückzug' : 'Kampf'}`;
 
     this.ui.statsEl.innerHTML = `
+      <div class="pill">Level <strong>${levelName}</strong></div>
       <div class="pill">Level <strong>${p.level}</strong></div>
       <div class="pill">XP <strong>${p.exp}</strong> / ${xpToNext(p.level)}</div>
       <div class="pill">Gold <strong>${p.gold}</strong></div>

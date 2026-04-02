@@ -33,6 +33,7 @@ export class SiegeEngine {
       enemyManaFill: documentRef.getElementById("enemyManaFill"),
       playerText: documentRef.getElementById("playerText"),
       enemyText: documentRef.getElementById("enemyText"),
+      levelBtn: documentRef.getElementById("levelBtn"),
     };
     this.state = createInitialState();
     this.W = 1280;
@@ -73,6 +74,7 @@ export class SiegeEngine {
       state: this.state,
       config: this.config,
       math: this.math,
+      structuresEnabledRef: () => this.state.level === 2,
     });
     this.structures = createStructureSystem({
       state: this.state,
@@ -195,8 +197,11 @@ export class SiegeEngine {
     Object.assign(this.state, createInitialState());
     this.state.player = createHero("left", { W: this.W, laneY: this.laneY });
     this.state.enemy = createHero("right", { W: this.W, laneY: this.laneY });
+    this.state.player.attackRange = 210;
+    this.state.level = 1;
     this.state.player.skills = this.skills.makeRuntimeSkillList(0);
     this.state.enemy.skills = this.skills.makeRuntimeSkillList(() => rand(0.4, 3.2));
+    this.structures.setEnabled(this.state.level === 2);
     this.state.structures = this.structures.buildSiegeStructures(this.laneY, this.W);
     this.wave.spawnWave();
 
@@ -285,7 +290,23 @@ export class SiegeEngine {
     if (target) this.movement.faceTowards(hero, target.x, target.y);
     if (target && hero.attackCd <= 0) {
       hero.attackCd = hero.attackSpeed;
-      this.combat.damageUnit(target, stats.attackDamage + buffDamage, hero);
+      const rangedAutoAttack = hero.side === "left";
+      if (rangedAutoAttack) {
+        this.state.projectiles.push({
+          from: hero,
+          target,
+          x: hero.x,
+          y: hero.y,
+          speed: 170,
+          radius: 5,
+          damage: stats.attackDamage + buffDamage,
+          color: "#ff3a3a",
+          kind: "auto-shot",
+          trail: [],
+        });
+      } else {
+        this.combat.damageUnit(target, stats.attackDamage + buffDamage, hero);
+      }
     }
   }
 
@@ -321,7 +342,7 @@ export class SiegeEngine {
       creep.y += (this.laneY - creep.y) * dt * 1.4;
     }
 
-    const gate = this.structures.getGate();
+    const gate = this.structures.getGate(this.state.level);
     if (gate && !gate.dead && !gate.vulnerable && creep.side === 'left') {
       creep.x = Math.min(creep.x, gate.x - CONFIG.gateMinSiegeX);
     }
@@ -348,7 +369,7 @@ export class SiegeEngine {
     this.combat.updateProjectiles(dt);
     this.effects.update(dt);
 
-    if (this.structures.isGateVulnerable() && !this.state.gateWasVulnerable) {
+    if (this.structures.isGateVulnerable(this.state.level) && !this.state.gateWasVulnerable) {
       this.state.gateWasVulnerable = true;
       this.showMessage("Tor ist jetzt angreifbar!", 1.6);
     }
@@ -388,7 +409,31 @@ export class SiegeEngine {
       if (index >= 0) this.skills.tryCastSkill(this.state.player, index);
     });
     this.ui.restartBtn.addEventListener('click', () => this.init());
+    if (this.ui.levelBtn) {
+      this.ui.levelBtn.addEventListener("click", () => this.nextLevel());
+    }
     this.input.attach();
     this.init();
+  }
+
+  getCurrentLevelName() {
+    return this.state.level === 1 ? "Level 1" : "Level 2";
+  }
+
+  nextLevel() {
+    this.state.level = this.state.level === 1 ? 2 : 1;
+    this.state.creeps = [];
+    this.state.projectiles = [];
+    this.state.effects = [];
+    this.structures.setEnabled(this.state.level === 2);
+    this.state.structures = this.structures.buildSiegeStructures(this.laneY, this.W);
+    this.wave.spawnWave();
+    this.showMessage(
+      this.state.level === 1
+        ? "Level 1: Open Lane (ohne Tuerme und Tor)."
+        : "Level 2: Signature Siege (mit Tuerme und Tor).",
+      2.2
+    );
+    this.uiSystem.update();
   }
 }

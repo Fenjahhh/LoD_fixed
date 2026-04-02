@@ -21,5 +21,6 @@ export function createInitialState() {
     message: '',
     gateWasVulnerable: false,
     cameraShake: 0,
+    level: 1,
   };
 }
