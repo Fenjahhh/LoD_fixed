@@ -1,0 +1,43 @@
+export function createSiegeStructures(config, worldWidth, laneY, rand) {
+  return [
+    {
+      type: "structure",
+      kind: "tower",
+      id: "tower_outer",
+      side: "right",
+      x: worldWidth - config.towerXFromRightOuter,
+      y: laneY - config.towerYOffset,
+      radius: 19,
+      hp: 380,
+      maxHp: 380,
+      attackCd: rand(0, 0.7),
+      dead: false,
+    },
+    {
+      type: "structure",
+      kind: "tower",
+      id: "tower_inner",
+      side: "right",
+      x: worldWidth - config.towerXFromRightInner,
+      y: laneY + config.towerYOffset,
+      radius: 19,
+      hp: 420,
+      maxHp: 420,
+      attackCd: rand(0.2, 0.9),
+      dead: false,
+    },
+    {
+      type: "structure",
+      kind: "gate",
+      id: "gate",
+      side: "right",
+      x: worldWidth - config.gateXFromRight,
+      y: laneY,
+      radius: config.gateRadius,
+      hp: 1040,
+      maxHp: 1040,
+      vulnerable: false,
+      dead: false,
+    },
+  ];
+}
