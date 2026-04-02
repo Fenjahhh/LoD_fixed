@@ -113,4 +113,19 @@ export class CombatSystem {
       p.y += (dy / d) * p.speed * dt;
     }
   }
+
+  fireAutoAttackProjectile(attacker, target, damage, color) {
+    this.world.state.projectiles.push({
+      from: attacker,
+      target,
+      x: attacker.x,
+      y: attacker.y,
+      speed: 340,
+      radius: 4,
+      damage,
+      color,
+      kind: "auto",
+      trail: [],
+    });
+  }
 }

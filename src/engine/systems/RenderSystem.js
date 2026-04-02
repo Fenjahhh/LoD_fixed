@@ -21,15 +21,17 @@ export function createRenderSystem(world) {
     ctx.fillStyle = '#171d30';
     ctx.fillRect(config.arenaPadding, config.arenaPadding, W - config.arenaPadding * 2, H - config.arenaPadding * 2);
 
-    const defenseX = W - config.defenseZoneFromRight;
-    ctx.fillStyle = 'rgba(146, 143, 200, 0.12)';
-    ctx.fillRect(defenseX, config.arenaPadding, W - defenseX - config.arenaPadding, H - config.arenaPadding * 2);
+    if (state.level === 2) {
+      const defenseX = W - config.defenseZoneFromRight;
+      ctx.fillStyle = 'rgba(146, 143, 200, 0.12)';
+      ctx.fillRect(defenseX, config.arenaPadding, W - defenseX - config.arenaPadding, H - config.arenaPadding * 2);
 
-    const gate = structureSystem.getGate();
-    if (gate && !gate.dead) {
-      const innerStart = gate.x - config.gateMinSiegeX;
-      ctx.fillStyle = gate.vulnerable ? 'rgba(130, 232, 165, 0.12)' : 'rgba(140, 120, 180, 0.12)';
-      ctx.fillRect(innerStart, config.arenaPadding, W - innerStart - config.arenaPadding, H - config.arenaPadding * 2);
+      const gate = structureSystem.getGate();
+      if (gate && !gate.dead) {
+        const innerStart = gate.x - config.gateMinSiegeX;
+        ctx.fillStyle = gate.vulnerable ? 'rgba(130, 232, 165, 0.12)' : 'rgba(140, 120, 180, 0.12)';
+        ctx.fillRect(innerStart, config.arenaPadding, W - innerStart - config.arenaPadding, H - config.arenaPadding * 2);
+      }
     }
 
     ctx.strokeStyle = '#334060';
@@ -52,13 +54,15 @@ export function createRenderSystem(world) {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    for (const tower of structureSystem.getTowers()) {
-      if (tower.dead) continue;
-      ctx.strokeStyle = 'rgba(255, 199, 134, 0.22)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(tower.x, tower.y, config.towerRange, 0, Math.PI * 2);
-      ctx.stroke();
+    if (state.level === 2) {
+      for (const tower of structureSystem.getTowers()) {
+        if (tower.dead) continue;
+        ctx.strokeStyle = 'rgba(255, 199, 134, 0.22)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(tower.x, tower.y, config.towerRange, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
   }
 
@@ -167,9 +171,19 @@ export function createRenderSystem(world) {
       ctx.arc(p.x, p.y, p.radius + 2, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.5;
+      const isPlayerAuto = p.kind === "auto-shot" && p.from && p.from.side === "left";
+      ctx.strokeStyle = isPlayerAuto ? "#ff1f1f" : "#ffffff";
+      ctx.lineWidth = isPlayerAuto ? 2.5 : 1.5;
       ctx.stroke();
+
+      if (isPlayerAuto) {
+        // Extra glow makes the player's base attack unmistakably visible.
+        ctx.globalAlpha = 0.65;
+        ctx.strokeStyle = "#ff8f8f";
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
     }
   }
 
@@ -228,7 +242,9 @@ export function createRenderSystem(world) {
     drawArena();
     drawProjectiles();
     drawEffects();
-    for (const structure of state.structures) drawStructure(structure);
+    if (state.level === 2) {
+      for (const structure of state.structures) drawStructure(structure);
+    }
     drawUnit(state.player);
     drawUnit(state.enemy);
     for (const creep of state.creeps) drawUnit(creep);
