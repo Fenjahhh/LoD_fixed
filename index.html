@@ -207,6 +207,65 @@
 
     .message.show { opacity: 1; }
 
+    .heroSelect {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(94vw, 900px);
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(8, 10, 16, 0.95);
+      border: 1px solid rgba(255,255,255,0.14);
+      z-index: 40;
+      display: none;
+      pointer-events: auto;
+    }
+
+    .heroSelect.show {
+      display: block;
+    }
+
+    .heroSelect h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      color: var(--accent);
+    }
+
+    .heroCards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .heroCard {
+      border: 1px solid rgba(255,255,255,0.14);
+      background: #1a2236;
+      border-radius: 12px;
+      padding: 10px;
+      text-align: left;
+      min-height: 132px;
+    }
+
+    .heroCard h4 {
+      margin: 0 0 6px;
+      font-size: 14px;
+    }
+
+    .heroCard p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .heroCard .shapePreview {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text);
+      opacity: 0.9;
+    }
+
     .help {
       font-size: 12px;
       color: var(--muted);
@@ -250,6 +309,11 @@
       </div>
 
       <div class="message" id="message"></div>
+
+      <div class="heroSelect" id="heroSelect">
+        <h3 id="heroSelectTitle">Waehle deinen Helden</h3>
+        <div class="heroCards" id="heroCards"></div>
+      </div>
     </div>
 
     <div class="bottomUI">

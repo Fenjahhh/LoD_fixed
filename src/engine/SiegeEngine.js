@@ -2,6 +2,7 @@ import { createInitialState } from "./core/state.js";
 import { clamp, rand } from "./core/math.js";
 import { CONFIG, COLORS } from "./data/config.js";
 import { SHOP_ITEMS } from "./data/shopItems.js";
+import { HERO_CLASSES, getHeroClassById } from "./data/heroClasses.js";
 import { createHero, heroStatsWithItems } from "./entities/Hero.js";
 import { createEffectsSystem } from "./systems/EffectsSystem.js";
 import { gainGold, gainExp } from "./systems/ProgressionSystem.js";
@@ -34,6 +35,9 @@ export class SiegeEngine {
       playerText: documentRef.getElementById("playerText"),
       enemyText: documentRef.getElementById("enemyText"),
       levelBtn: documentRef.getElementById("levelBtn"),
+      heroSelectOverlay: documentRef.getElementById("heroSelect"),
+      heroCards: documentRef.getElementById("heroCards"),
+      heroSelectTitle: documentRef.querySelector("#heroSelect h3"),
     };
     this.state = createInitialState();
     this.W = 1280;
@@ -43,6 +47,7 @@ export class SiegeEngine {
     this.config = CONFIG;
     this.colors = COLORS;
     this.shopItems = SHOP_ITEMS;
+    this.heroClasses = HERO_CLASSES;
 
     const world = {
       state: this.state,
@@ -119,8 +124,8 @@ export class SiegeEngine {
       },
     });
     this.skills = {
-      makeRuntimeSkillList: (cdSeed = 0) =>
-        this.skillsCatalog.map((skill) => ({
+      makeRuntimeSkillList: (cdSeed = 0, heroClassId = HERO_CLASSES[0].id) =>
+        this.skillsCatalog.makeSkillSet(heroClassId).map((skill) => ({
           ...skill,
           cd: typeof cdSeed === "function" ? cdSeed() : cdSeed,
         })),
@@ -195,12 +200,12 @@ export class SiegeEngine {
     if (this.state.rafId) cancelAnimationFrame(this.state.rafId);
 
     Object.assign(this.state, createInitialState());
-    this.state.player = createHero("left", { W: this.W, laneY: this.laneY });
+    const selectedClass = getHeroClassById(this.state.selectedHeroClass);
+    this.state.player = createHero("left", { W: this.W, laneY: this.laneY }, selectedClass);
     this.state.enemy = createHero("right", { W: this.W, laneY: this.laneY });
-    this.state.player.attackRange = 210;
     this.state.level = 1;
-    this.state.player.skills = this.skills.makeRuntimeSkillList(0);
-    this.state.enemy.skills = this.skills.makeRuntimeSkillList(() => rand(0.4, 3.2));
+    this.state.player.skills = this.skills.makeRuntimeSkillList(0, selectedClass.id);
+    this.state.enemy.skills = this.skills.makeRuntimeSkillList(() => rand(0.4, 3.2), selectedClass.id);
     this.structures.setEnabled(this.state.level === 2);
     this.state.structures = this.structures.buildSiegeStructures(this.laneY, this.W);
     this.wave.spawnWave();
@@ -211,6 +216,7 @@ export class SiegeEngine {
     );
     this.uiSystem.update();
     this.showMessage("Signature Siege: gleiche Waves, aktiver Gegner-Daemon, 2 Tuerme + Gate.", 3.2);
+    this.openHeroSelect("Waehle deinen Helden fuer Level 1");
     this.state.rafId = requestAnimationFrame((ts) => this.loop(ts));
   }
 
@@ -297,10 +303,11 @@ export class SiegeEngine {
           target,
           x: hero.x,
           y: hero.y,
-          speed: 170,
-          radius: 5,
+          speed: hero.autoShotSpeed || 170,
+          radius: hero.autoShotRadius || 5,
           damage: stats.attackDamage + buffDamage,
-          color: "#ff3a3a",
+          color: hero.autoAttackColor || "#ff3a3a",
+          trailColor: hero.autoAttackTrailColor || "#ff8f8f",
           kind: "auto-shot",
           trail: [],
         });
@@ -351,6 +358,10 @@ export class SiegeEngine {
 
   update(dt) {
     if (this.state.winner) return;
+    if (this.state.heroSelectOpen) {
+      this.uiSystem.update();
+      return;
+    }
 
     this.state.time += dt;
     this.state.spawnTimer += dt;
@@ -420,6 +431,10 @@ export class SiegeEngine {
     return this.state.level === 1 ? "Level 1" : "Level 2";
   }
 
+  getCurrentHeroClassName() {
+    return getHeroClassById(this.state.selectedHeroClass).name;
+  }
+
   nextLevel() {
     this.state.level = this.state.level === 1 ? 2 : 1;
     this.state.creeps = [];
@@ -434,6 +449,60 @@ export class SiegeEngine {
         : "Level 2: Signature Siege (mit Tuerme und Tor).",
       2.2
     );
+    this.openHeroSelect(`Waehle deinen Helden fuer ${this.getCurrentLevelName()}`);
     this.uiSystem.update();
+  }
+
+  applyHeroClass(classId) {
+    const currentClass = getHeroClassById(classId);
+    if (!currentClass || !this.state.player) return;
+    this.state.selectedHeroClass = currentClass.id;
+    const newHero = createHero("left", { W: this.W, laneY: this.laneY }, currentClass);
+    const old = this.state.player;
+    newHero.level = old.level;
+    newHero.exp = old.exp;
+    newHero.gold = old.gold;
+    newHero.kills = old.kills;
+    newHero.deaths = old.deaths;
+    newHero.items = old.items;
+    newHero.x = old.x;
+    newHero.y = old.y;
+    newHero.moveTargetX = old.moveTargetX;
+    newHero.moveTargetY = old.moveTargetY;
+    newHero.dead = old.dead;
+    newHero.respawnTimer = old.respawnTimer;
+    newHero.buff = old.buff;
+    newHero.hp = Math.min(newHero.maxHp, old.hp);
+    newHero.mana = Math.min(newHero.maxMana, old.mana);
+    newHero.skills = this.skills.makeRuntimeSkillList(0, currentClass.id);
+    this.state.player = newHero;
+
+    this.uiSystem.buildControls(
+      (i) => this.skills.tryCastSkill(this.state.player, i),
+      (i) => this.buyItem(i)
+    );
+    this.uiSystem.update();
+    this.showMessage(`${currentClass.name} ausgewaehlt`, 1.4);
+  }
+
+  openHeroSelect(title) {
+    const overlay = this.ui.heroSelectOverlay;
+    const cards = this.ui.heroCards;
+    if (!overlay || !cards) return;
+    this.state.heroSelectOpen = true;
+    if (this.ui.heroSelectTitle) this.ui.heroSelectTitle.textContent = title;
+    cards.innerHTML = "";
+    this.uiSystem.buildHeroSelect(this.heroClasses, (heroClassId) => {
+      this.applyHeroClass(heroClassId);
+      this.closeHeroSelect();
+    });
+    overlay.classList.add("show");
+  }
+
+  closeHeroSelect() {
+    const overlay = this.ui.heroSelectOverlay;
+    if (!overlay) return;
+    this.state.heroSelectOpen = false;
+    overlay.classList.remove("show");
   }
 }

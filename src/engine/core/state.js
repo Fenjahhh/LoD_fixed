@@ -22,5 +22,7 @@ export function createInitialState() {
     gateWasVulnerable: false,
     cameraShake: 0,
     level: 1,
+    selectedHeroClass: "crimson_hunter",
+    heroSelectOpen: false,
   };
 }

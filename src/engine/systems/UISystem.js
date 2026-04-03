@@ -9,7 +9,7 @@ export class UISystem {
   buildControls(onSkill, onBuy) {
     const { skillsEl, shopEl } = this.ui;
     skillsEl.innerHTML = '';
-    this.engine.skillsCatalog.forEach((_, i) => {
+    for (let i = 0; i < 4; i += 1) {
       const btn = document.createElement('button');
       btn.className = 'skill';
       const trigger = (e) => {
@@ -20,7 +20,7 @@ export class UISystem {
       btn.addEventListener('pointerdown', trigger);
       btn.addEventListener('click', trigger);
       skillsEl.appendChild(btn);
-    });
+    }
 
     shopEl.innerHTML = '';
     this.engine.shopItems.forEach((_, i) => {
@@ -46,6 +46,7 @@ export class UISystem {
     const gate = this.engine.structures.getGate(state.level);
     const towersAlive = this.engine.structures.getTowers(state.level).filter((t) => !t.dead).length;
     const levelName = this.engine.getCurrentLevelName();
+    const heroClassName = this.engine.getCurrentHeroClassName();
 
     this.ui.playerHpFill.style.width = (100 * p.hp / ps.maxHp) + '%';
     this.ui.playerManaFill.style.width = (100 * p.mana / ps.maxMana) + '%';
@@ -57,6 +58,7 @@ export class UISystem {
 
     this.ui.statsEl.innerHTML = `
       <div class="pill">Level <strong>${levelName}</strong></div>
+      <div class="pill">Klasse <strong>${heroClassName}</strong></div>
       <div class="pill">Level <strong>${p.level}</strong></div>
       <div class="pill">XP <strong>${p.exp}</strong> / ${xpToNext(p.level)}</div>
       <div class="pill">Gold <strong>${p.gold}</strong></div>
@@ -69,6 +71,11 @@ export class UISystem {
     const skillButtons = this.ui.skillsEl.querySelectorAll('button');
     skillButtons.forEach((btn, i) => {
       const skill = p.skills[i];
+      if (!skill) {
+        btn.disabled = true;
+        btn.innerHTML = "<div>-</div><small>Keine Skill</small>";
+        return;
+      }
       btn.disabled = p.dead || skill.cd > 0 || p.mana < skill.cost || !!state.winner;
       btn.innerHTML = `<div>${skill.key} · ${skill.name}</div><small>${skill.cd > 0 ? `CD ${skill.cd.toFixed(1)}s` : `${skill.cost} Mana`}</small>`;
     });
@@ -79,5 +86,27 @@ export class UISystem {
       btn.disabled = p.gold < item.cost || !!state.winner;
       btn.innerHTML = `<div>${item.name} · ${item.cost}g</div><small>${item.desc}</small>`;
     });
+  }
+
+  buildHeroSelect(heroClasses, onSelect) {
+    if (!this.ui.heroCards) return;
+    this.ui.heroCards.innerHTML = "";
+    for (const heroClass of heroClasses) {
+      const btn = document.createElement("button");
+      btn.className = "heroCard";
+      btn.style.borderColor = heroClass.colors.main;
+      btn.innerHTML = `
+        <h4 style="color:${heroClass.colors.main}">${heroClass.name}</h4>
+        <p>${heroClass.description}</p>
+        <div class="shapePreview">Form: ${heroClass.shape}</div>
+      `;
+      btn.addEventListener("click", () => onSelect(heroClass.id));
+      this.ui.heroCards.appendChild(btn);
+    }
+  }
+
+  showHeroSelect(show) {
+    if (!this.ui.heroSelectOverlay) return;
+    this.ui.heroSelectOverlay.classList.toggle("show", !!show);
   }
 }
