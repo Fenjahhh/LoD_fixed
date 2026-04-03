@@ -1,6 +1,11 @@
-export function createHero(side, world) {
+export function createHero(side, world, heroClass = null) {
   const isPlayer = side === 'left';
   const baseX = isPlayer ? 170 : world.W - 300;
+  const classStats = heroClass?.stats || {};
+  const classColors = heroClass?.colors || {};
+  const defaultMain = isPlayer ? '#7de2d1' : '#ff8a8a';
+  const defaultAccent = isPlayer ? '#dffcf7' : '#ffe2e2';
+  const defaultAuto = isPlayer ? '#ff3a3a' : '#ffca75';
   return {
     type: 'hero',
     side,
@@ -10,16 +15,16 @@ export function createHero(side, world) {
     facing: isPlayer ? 0 : Math.PI,
     moveTargetX: baseX,
     moveTargetY: world.laneY,
-    maxHp: 350,
-    hp: 350,
-    maxMana: 160,
-    mana: 160,
-    manaRegen: 8,
-    attackDamage: 22,
-    attackRange: 74,
+    maxHp: classStats.maxHp ?? 350,
+    hp: classStats.maxHp ?? 350,
+    maxMana: classStats.maxMana ?? 160,
+    mana: classStats.maxMana ?? 160,
+    manaRegen: classStats.manaRegen ?? 8,
+    attackDamage: classStats.attackDamage ?? 22,
+    attackRange: classStats.attackRange ?? 74,
     attackCd: 0,
-    attackSpeed: 0.8,
-    moveSpeed: 150,
+    attackSpeed: classStats.attackSpeed ?? 0.8,
+    moveSpeed: classStats.moveSpeed ?? 150,
     level: 1,
     exp: 0,
     gold: 0,
@@ -31,6 +36,15 @@ export function createHero(side, world) {
     buff: null,
     skills: [],
     retreating: false,
+    classId: heroClass?.id || null,
+    className: heroClass?.name || null,
+    classShape: heroClass?.shape || 'triangle',
+    visualMain: classColors.main || defaultMain,
+    visualAccent: classColors.accent || defaultAccent,
+    autoAttackColor: classColors.autoShot || defaultAuto,
+    autoAttackTrailColor: classColors.autoTrail || defaultAuto,
+    autoShotSpeed: classStats.autoShotSpeed ?? 170,
+    autoShotRadius: classStats.autoShotRadius ?? 5,
   };
 }
 

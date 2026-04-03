@@ -91,27 +91,57 @@ export function createRenderSystem(world) {
     ctx.fillRect(structure.x - 24, structure.y - 34, 48 * hpPct, 6);
   }
 
-  function drawTriangleHero(unit, main, accent) {
+  function drawHeroByClass(unit, main, accent) {
+    const cls = unit.classId || "crimson_hunter";
     ctx.save();
     ctx.translate(unit.x, unit.y);
     ctx.rotate(unit.facing);
-    ctx.fillStyle = main;
-    ctx.beginPath();
-    ctx.moveTo(20, 0);
-    ctx.lineTo(-14, -14);
-    ctx.lineTo(-9, 0);
-    ctx.lineTo(-14, 14);
-    ctx.closePath();
-    ctx.fill();
 
-    ctx.fillStyle = accent;
-    ctx.beginPath();
-    ctx.moveTo(8, 0);
-    ctx.lineTo(-6, -6);
-    ctx.lineTo(-2, 0);
-    ctx.lineTo(-6, 6);
-    ctx.closePath();
-    ctx.fill();
+    if (cls === "emerald_oracle") {
+      ctx.fillStyle = main;
+      ctx.beginPath();
+      ctx.arc(0, 0, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.fillRect(8, -3, 10, 6);
+      ctx.beginPath();
+      ctx.arc(-3, 0, 6, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (cls === "void_templar") {
+      ctx.fillStyle = main;
+      ctx.beginPath();
+      ctx.moveTo(20, 0);
+      ctx.lineTo(0, -12);
+      ctx.lineTo(-15, 0);
+      ctx.lineTo(0, 12);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.moveTo(10, 0);
+      ctx.lineTo(0, -6);
+      ctx.lineTo(-7, 0);
+      ctx.lineTo(0, 6);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.fillStyle = main;
+      ctx.beginPath();
+      ctx.moveTo(20, 0);
+      ctx.lineTo(-14, -14);
+      ctx.lineTo(-9, 0);
+      ctx.lineTo(-14, 14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.moveTo(8, 0);
+      ctx.lineTo(-6, -6);
+      ctx.lineTo(-2, 0);
+      ctx.lineTo(-6, 6);
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -120,11 +150,11 @@ export function createRenderSystem(world) {
     if (unit.type === 'hero' && unit.dead) ctx.globalAlpha = 0.25;
 
     const isLeft = unit.side === 'left';
-    const main = isLeft ? colors.ally : colors.enemy;
-    const accent = isLeft ? '#dffcf7' : '#ffe2e2';
+    const main = unit.visualMain || (isLeft ? colors.ally : colors.enemy);
+    const accent = unit.visualAccent || (isLeft ? '#dffcf7' : '#ffe2e2');
 
     if (unit.type === 'hero') {
-      drawTriangleHero(unit, main, accent);
+      drawHeroByClass(unit, main, accent);
       if (unit.buff) {
         ctx.strokeStyle = colors.overdrive;
         ctx.lineWidth = 3;
@@ -172,14 +202,15 @@ export function createRenderSystem(world) {
       ctx.fill();
 
       const isPlayerAuto = p.kind === "auto-shot" && p.from && p.from.side === "left";
-      ctx.strokeStyle = isPlayerAuto ? "#ff1f1f" : "#ffffff";
+      const stroke = isPlayerAuto ? (p.trailColor || "#ff1f1f") : "#ffffff";
+      ctx.strokeStyle = stroke;
       ctx.lineWidth = isPlayerAuto ? 2.5 : 1.5;
       ctx.stroke();
 
       if (isPlayerAuto) {
         // Extra glow makes the player's base attack unmistakably visible.
         ctx.globalAlpha = 0.65;
-        ctx.strokeStyle = "#ff8f8f";
+        ctx.strokeStyle = p.trailColor || "#ff8f8f";
         ctx.lineWidth = 3.5;
         ctx.stroke();
         ctx.globalAlpha = 1;
