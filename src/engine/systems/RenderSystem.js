@@ -196,6 +196,24 @@ export function createRenderSystem(world) {
         ctx.globalAlpha = 1;
       }
 
+      if (p.kind === "rocket-forward") {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        const rot = Math.atan2(p.vy || 0, p.vx || 1);
+        ctx.rotate(rot);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-9, -3, 18, 6);
+        ctx.fillStyle = "#ffe9cf";
+        ctx.beginPath();
+        ctx.moveTo(11, 0);
+        ctx.lineTo(4, -5);
+        ctx.lineTo(4, 5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
+
       ctx.fillStyle = p.color;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.radius + 2, 0, Math.PI * 2);
@@ -242,6 +260,14 @@ export function createRenderSystem(world) {
         ctx.lineWidth = 4;
         ctx.beginPath();
         ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (e.kind === 'poison-cloud') {
+        ctx.fillStyle = e.color;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#c7ffd8";
+        ctx.lineWidth = 2;
         ctx.stroke();
       } else if (e.kind === 'text') {
         ctx.fillStyle = e.color;

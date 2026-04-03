@@ -378,6 +378,7 @@ export class SiegeEngine {
 
     this.structures.updateStructures(dt, this.W);
     this.combat.updateProjectiles(dt);
+    this.updateSkillZones(dt);
     this.effects.update(dt);
 
     if (this.structures.isGateVulnerable(this.state.level) && !this.state.gateWasVulnerable) {
@@ -400,6 +401,31 @@ export class SiegeEngine {
     }
 
     this.uiSystem.update();
+  }
+
+  updateSkillZones(dt) {
+    if (!this.state.skillHazards || this.state.skillHazards.length === 0) return;
+    for (let i = this.state.skillHazards.length - 1; i >= 0; i -= 1) {
+      const zone = this.state.skillHazards[i];
+      zone.duration -= dt;
+      if (zone.duration <= 0) {
+        this.state.skillHazards.splice(i, 1);
+        continue;
+      }
+      zone.tickTimer -= dt;
+      if (zone.tickTimer > 0) continue;
+      zone.tickTimer = zone.tickEvery;
+
+      const enemies = this.targeting.getOpposingUnits(zone.side, true, zone.source);
+      for (const unit of enemies) {
+        if (unit.dead) continue;
+        if (this.math.dist(zone, unit) <= zone.radius) {
+          const tickDamage = zone.baseDamage + zone.source.level * zone.scaling;
+          this.combat.damageUnit(unit, tickDamage, zone.source);
+          this.effects.burst(unit.x, unit.y, zone.color, 3);
+        }
+      }
+    }
   }
 
   loop(ts) {

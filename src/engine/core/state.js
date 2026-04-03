@@ -24,5 +24,6 @@ export function createInitialState() {
     level: 1,
     selectedHeroClass: "crimson_hunter",
     heroSelectOpen: false,
+    skillHazards: [],
   };
 }
