@@ -59,7 +59,11 @@ export class UISystem {
     const levelObjectivePill =
       state.level === 1
         ? `<div class="pill">L1->L2 Ziel <strong>${p.kills} / 5 Kills</strong></div>`
-        : "";
+        : state.level === 2
+          ? `<div class="pill">L2->L3 Ziel <strong>${p.kills} / 10 Kills</strong></div>`
+          : state.level === 3
+            ? `<div class="pill">L3->L4 Ziel <strong>${p.kills} / 14 Kills</strong></div>`
+            : `<div class="pill">Escort <strong>${Math.round(state.escortPayload?.progress || 0)}%</strong></div>`;
 
     this.ui.statsEl.innerHTML = `
       <div class="pill">Level <strong>${levelName}</strong></div>

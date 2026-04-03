@@ -32,6 +32,19 @@ export const CONFIG = {
   playerDeathLimit: 7,
   level1KillsToAdvance: 5,
   level2KillsToAdvance: 8,
+  level3KillsToAdvance: 12,
+  escortPayloadHp: 1800,
+  escortPayloadRadius: 24,
+  escortPayloadStartX: 210,
+  escortPayloadTargetXFromRight: 150,
+  escortPayloadBaseSpeed: 22,
+  escortPayloadAllyBoostRange: 145,
+  escortPayloadEnemyBlockRange: 165,
+  escortPayloadAllyBoostPerUnit: 11,
+  escortPayloadEnemySlowPerUnit: 12,
+  escortPayloadMinSpeed: 6,
+  escortPayloadMaxSpeed: 56,
+  escortPayloadEnemyDamagePerSecond: 55,
 };
 
 export const COLORS = {

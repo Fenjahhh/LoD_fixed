@@ -19,6 +19,7 @@ import { createRenderSystem } from "./systems/RenderSystem.js";
 
 const LEVEL1_KILLS_TO_ADVANCE = 5;
 const LEVEL2_KILLS_TO_ADVANCE = 10;
+const LEVEL3_KILLS_TO_ADVANCE = 14;
 
 export class SiegeEngine {
   constructor(documentRef) {
@@ -219,6 +220,9 @@ export class SiegeEngine {
     this.state.selectedHeroClass = selectedClassId;
     this.state.mapHazards = [];
     this.state.forceFields = [];
+    this.state.escortPayload = null;
+    this.state.levelMode = null;
+    this.state.escortObjective = null;
     const selectedClass = getHeroClassById(this.state.selectedHeroClass);
     this.state.player = createHero("left", { W: this.W, laneY: this.laneY }, selectedClass);
     this.state.enemy = createHero("right", { W: this.W, laneY: this.laneY });
@@ -230,6 +234,11 @@ export class SiegeEngine {
     if (level === 3) {
       this.state.mapHazards = this.createLevel3MapHazards();
       this.state.forceFields = this.createLevel3ForceFields();
+    }
+    if (level === 4) {
+      this.state.escortPayload = this.createEscortPayload();
+      this.state.escortObjective = this.state.escortPayload;
+      this.state.levelMode = "escort";
     }
     this.uiSystem.buildControls(
       (i) => this.skills.tryCastSkill(this.state.player, i),
@@ -423,6 +432,7 @@ export class SiegeEngine {
     this.updateSkillZones(dt);
     this.updateMapHazards(dt);
     this.updateForceFields(dt);
+    this.updateEscortPayload(dt);
     this.effects.update(dt);
 
     if (this.structures.isGateVulnerable(this.state.level) && !this.state.gateWasVulnerable) {
@@ -454,6 +464,13 @@ export class SiegeEngine {
     if (this.state.level === 2 && this.state.player.kills >= LEVEL2_KILLS_TO_ADVANCE) {
       this.resetMatchToLevel(3, {
         message: "Level 3: Hazard Arena! Loecher und Magnetfelder sind aktiv.",
+        showHeroSelect: true,
+      });
+      return;
+    }
+    if (this.state.level === 3 && this.state.player.kills >= LEVEL3_KILLS_TO_ADVANCE) {
+      this.resetMatchToLevel(4, {
+        message: "Level 4: Escort! Beschuetze die Payload bis zur Festung.",
         showHeroSelect: true,
       });
       return;
@@ -575,6 +592,81 @@ export class SiegeEngine {
     }
   }
 
+  createEscortPayload() {
+    return {
+      type: "escort-payload",
+      x: 220,
+      y: this.laneY,
+      radius: 22,
+      hp: CONFIG.escortPayloadHp,
+      maxHp: CONFIG.escortPayloadHp,
+      progress: 0,
+      targetX: this.W - CONFIG.gateXFromRight - 18,
+      speed: CONFIG.escortPayloadBaseSpeed,
+      dead: false,
+    };
+  }
+
+  updateEscortPayload(dt) {
+    if (this.state.level !== 4) return;
+    const payload = this.state.escortPayload;
+    if (!payload || payload.dead) return;
+
+    payload.targetX = this.W - CONFIG.gateXFromRight - 18;
+    const allies = [];
+    if (this.state.player && !this.state.player.dead) allies.push(this.state.player);
+    for (const creep of this.state.creeps) {
+      if (!creep.dead && creep.side === "left") allies.push(creep);
+    }
+    const enemies = [];
+    if (this.state.enemy && !this.state.enemy.dead) enemies.push(this.state.enemy);
+    for (const creep of this.state.creeps) {
+      if (!creep.dead && creep.side === "right") enemies.push(creep);
+    }
+
+    let allyInfluence = 0;
+    let enemyInfluence = 0;
+    for (const unit of allies) {
+      if (this.math.dist(unit, payload) <= CONFIG.escortInfluenceRadius) allyInfluence += unit.type === "hero" ? 3 : 1;
+    }
+    for (const unit of enemies) {
+      if (this.math.dist(unit, payload) <= CONFIG.escortInfluenceRadius) enemyInfluence += unit.type === "hero" ? 3 : 1;
+    }
+
+    const net = allyInfluence - enemyInfluence;
+    const moveFactor = Math.max(-0.4, Math.min(1.8, net * 0.16));
+    payload.x += payload.speed * moveFactor * dt;
+    payload.x = Math.max(CONFIG.arenaPadding + 70, Math.min(payload.targetX, payload.x));
+    payload.y += (this.laneY - payload.y) * dt * 2.3;
+    payload.progress = (payload.x - (CONFIG.arenaPadding + 70)) / Math.max(1, payload.targetX - (CONFIG.arenaPadding + 70));
+
+    if (enemyInfluence > allyInfluence) {
+      payload.hp -= (enemyInfluence - allyInfluence) * CONFIG.escortPayloadDpsFactor * dt;
+      payload.hp = Math.max(0, payload.hp);
+    } else if (allyInfluence > enemyInfluence) {
+      payload.hp = Math.min(payload.maxHp, payload.hp + (allyInfluence - enemyInfluence) * 6 * dt);
+    }
+    const enemyUnits = this.targeting.getOpposingUnits("left", false, null);
+    for (const unit of enemyUnits) {
+      if (unit.dead) continue;
+      if (this.math.dist(unit, payload) <= payload.radius + 22) {
+        payload.hp -= (unit.type === "hero" ? 18 : 9) * dt;
+      }
+    }
+    payload.hp = Math.max(0, payload.hp);
+
+    if (payload.hp <= 0) {
+      payload.dead = true;
+      this.state.winner = "enemy";
+      this.showMessage("Escort gescheitert! Payload wurde zerstoert.", 999);
+      return;
+    }
+    if (payload.x >= payload.targetX - 1) {
+      this.state.winner = "player";
+      this.showMessage("Escort erfolgreich! Payload hat das Ziel erreicht.", 999);
+    }
+  }
+
   loop(ts) {
     if (this.isCrashed || this.state.crashed) return;
     try {
@@ -620,7 +712,8 @@ export class SiegeEngine {
   getCurrentLevelName() {
     if (this.state.level === 1) return "Level 1";
     if (this.state.level === 2) return "Level 2";
-    return "Level 3";
+    if (this.state.level === 3) return "Level 3";
+    return "Level 4";
   }
 
   getCurrentHeroClassName() {
@@ -628,21 +721,16 @@ export class SiegeEngine {
   }
 
   nextLevel() {
-    this.state.level = this.state.level === 1 ? 2 : 1;
-    this.state.creeps = [];
-    this.state.projectiles = [];
-    this.state.effects = [];
-    this.structures.setEnabled(this.state.level === 2);
-    this.state.structures = this.structures.buildSiegeStructures(this.laneY, this.W);
-    this.wave.spawnWave();
-    this.showMessage(
-      this.state.level === 1
+    const next = this.state.level >= 4 ? 1 : this.state.level + 1;
+    const msg =
+      next === 1
         ? "Level 1: Open Lane (ohne Tuerme und Tor)."
-        : "Level 2: Signature Siege (mit Tuerme und Tor).",
-      2.2
-    );
-    this.openHeroSelect(`Waehle deinen Helden fuer ${this.getCurrentLevelName()}`);
-    this.uiSystem.update();
+        : next === 2
+          ? "Level 2: Signature Siege (mit Tuerme und Tor)."
+          : next === 3
+            ? "Level 3: Hazard Arena mit Loechern und Magnetfeldern."
+            : "Level 4: Escort! Beschuetze die Payload.";
+    this.resetMatchToLevel(next, { message: msg, showHeroSelect: true });
   }
 
   applyHeroClass(classId) {

@@ -29,6 +29,7 @@ export function createInitialState() {
     level3HoleSpawnTimer: 0,
     level3FluxX: 0,
     level3FluxDir: 1,
+    escortPayload: null,
     crashed: false,
     crashReason: "",
   };

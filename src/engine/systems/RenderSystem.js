@@ -34,6 +34,17 @@ export function createRenderSystem(world) {
       }
     }
 
+    if (state.level === 4 && state.escort) {
+      const startX = config.arenaPadding + 70;
+      const targetX = W - config.gateXFromRight - 18;
+      ctx.strokeStyle = "rgba(255, 209, 127, 0.25)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(startX, laneY);
+      ctx.lineTo(targetX, laneY);
+      ctx.stroke();
+    }
+
     if (state.level === 3) {
       if (state.mapHazards) {
         for (const hazard of state.mapHazards) {
@@ -60,6 +71,25 @@ export function createRenderSystem(world) {
           ctx.stroke();
         }
       }
+    }
+
+    if (state.level === 4 && state.escortPayload && !state.escortPayload.dead) {
+      const payload = state.escortPayload;
+      const progressX = payload.startX + (payload.goalX - payload.startX) * payload.progress;
+      ctx.strokeStyle = "rgba(250, 230, 126, 0.45)";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(payload.startX, payload.y);
+      ctx.lineTo(payload.goalX, payload.y);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(250, 230, 126, 0.3)";
+      ctx.beginPath();
+      ctx.arc(progressX, payload.y, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#e6f2ff";
+      ctx.font = "bold 14px Arial";
+      ctx.fillText("ESCORT", payload.startX - 24, payload.y - 14);
+      ctx.fillText("GOAL", payload.goalX - 20, payload.y - 14);
     }
 
     if (state.level === 3 && state.holeHazards && state.holeHazards.length > 0) {
@@ -132,6 +162,38 @@ export function createRenderSystem(world) {
     ctx.fillRect(structure.x - 24, structure.y - 34, 48, 6);
     ctx.fillStyle = structure.kind === 'gate' ? (structure.vulnerable ? '#89ff99' : '#8f86b8') : '#9ed5ff';
     ctx.fillRect(structure.x - 24, structure.y - 34, 48 * hpPct, 6);
+  }
+
+  function drawEscortPayload() {
+    if (state.level !== 4 || !state.escort || state.escort.dead) return;
+    const payload = state.escort;
+    ctx.fillStyle = "#5d5030";
+    ctx.fillRect(payload.x - 24, payload.y - 14, 48, 28);
+    ctx.fillStyle = "#f0d39a";
+    ctx.fillRect(payload.x - 14, payload.y - 22, 28, 10);
+    ctx.fillStyle = "#0b0f18";
+    ctx.fillRect(payload.x - 28, payload.y - 34, 56, 6);
+    const hpPct = math.clamp(payload.hp / payload.maxHp, 0, 1);
+    ctx.fillStyle = "#8cff98";
+    ctx.fillRect(payload.x - 28, payload.y - 34, 56 * hpPct, 6);
+  }
+
+  function drawEscortPayload() {
+    if (state.level !== 4 || !state.escortPayload || state.escortPayload.dead) return;
+    const payload = state.escortPayload;
+    const x = payload.x;
+    const y = payload.y;
+    ctx.fillStyle = "#41351e";
+    ctx.fillRect(x - 24, y - 18, 48, 36);
+    ctx.fillStyle = "#d7b874";
+    ctx.fillRect(x - 18, y - 12, 36, 24);
+    ctx.fillStyle = "#f8e3b0";
+    ctx.fillRect(x - 8, y - 4, 16, 8);
+    const hpPct = math.clamp(payload.hp / payload.maxHp, 0, 1);
+    ctx.fillStyle = "#0b0f18";
+    ctx.fillRect(x - 24, y - 28, 48, 6);
+    ctx.fillStyle = "#f7d37f";
+    ctx.fillRect(x - 24, y - 28, 48 * hpPct, 6);
   }
 
   function drawHeroByClass(unit, main, accent) {
@@ -346,9 +408,11 @@ export function createRenderSystem(world) {
     if (state.level === 2) {
       for (const structure of state.structures) drawStructure(structure);
     }
+    drawEscortPayload();
     drawUnit(state.player);
     drawUnit(state.enemy);
     for (const creep of state.creeps) drawUnit(creep);
+    drawEscortPayload();
     drawHUDMarkers();
     ctx.restore();
   }
