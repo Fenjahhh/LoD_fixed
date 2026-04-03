@@ -43,6 +43,8 @@ export class SiegeEngine {
     this.W = 1280;
     this.H = 720;
     this.laneY = 0;
+    this.boundGlobalErrorHandlers = false;
+    this.isCrashed = false;
     this.math = { clamp, rand, dist: (a, b) => Math.hypot(a.x - b.x, a.y - b.y) };
     this.config = CONFIG;
     this.colors = COLORS;
@@ -199,6 +201,7 @@ export class SiegeEngine {
   init() {
     this.resize();
     if (this.state.rafId) cancelAnimationFrame(this.state.rafId);
+    this.isCrashed = false;
 
     Object.assign(this.state, createInitialState());
     const selectedClass = getHeroClassById(this.state.selectedHeroClass);
@@ -239,6 +242,26 @@ export class SiegeEngine {
     this.state.uiMessageTimer = duration;
     this.ui.messageEl.textContent = text;
     this.ui.messageEl.classList.add("show");
+  }
+
+  handleCrash(error, context = "runtime") {
+    if (this.isCrashed) return;
+    this.isCrashed = true;
+    this.state.crashed = true;
+    this.state.crashInfo = {
+      context,
+      message: error?.message || String(error) || "Unknown error",
+      at: Date.now(),
+    };
+    if (this.state.rafId) {
+      cancelAnimationFrame(this.state.rafId);
+      this.state.rafId = 0;
+    }
+    this.state.winner = "error";
+    this.showMessage("Crash erkannt. Bitte auf Neustart klicken.", 999);
+    try {
+      console.error("[SiegeEngine CrashGuard]", context, error);
+    } catch (_) {}
   }
 
   tryCastSkill(hero, index) {
@@ -430,15 +453,32 @@ export class SiegeEngine {
   }
 
   loop(ts) {
-    if (!this.state.lastTs) this.state.lastTs = ts;
-    const dt = clamp((ts - this.state.lastTs) / 1000, 0.001, 0.033);
-    this.state.lastTs = ts;
-    this.update(dt);
-    this.render.render();
-    this.state.rafId = requestAnimationFrame((nextTs) => this.loop(nextTs));
+    if (this.isCrashed || this.state.crashed) return;
+    try {
+      if (!this.state.lastTs) this.state.lastTs = ts;
+      const dt = clamp((ts - this.state.lastTs) / 1000, 0.001, 0.033);
+      this.state.lastTs = ts;
+      this.update(dt);
+      this.render.render();
+      this.state.rafId = requestAnimationFrame((nextTs) => this.loop(nextTs));
+    } catch (error) {
+      this.handleCrash(error, "game-loop");
+    }
+  }
+
+  bindCrashGuards() {
+    if (this.boundGlobalErrorHandlers) return;
+    this.boundGlobalErrorHandlers = true;
+    window.addEventListener("error", (event) => {
+      this.handleCrash(event.error || new Error(event.message || "Script error"), "window-error");
+    });
+    window.addEventListener("unhandledrejection", (event) => {
+      this.handleCrash(event.reason || new Error("Unhandled promise rejection"), "promise-rejection");
+    });
   }
 
   mount() {
+    this.bindCrashGuards();
     window.addEventListener('resize', () => this.resize());
     window.addEventListener('keydown', (e) => {
       const key = e.key.toUpperCase();

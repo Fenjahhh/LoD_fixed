@@ -25,5 +25,7 @@ export function createInitialState() {
     selectedHeroClass: "crimson_hunter",
     heroSelectOpen: false,
     skillHazards: [],
+    crashed: false,
+    crashReason: "",
   };
 }
