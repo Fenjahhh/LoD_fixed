@@ -17,6 +17,8 @@ import { createInputSystem } from "./systems/InputSystem.js";
 import { UISystem } from "./systems/UISystem.js";
 import { createRenderSystem } from "./systems/RenderSystem.js";
 
+const LEVEL1_KILLS_TO_ADVANCE = 5;
+
 export class SiegeEngine {
   constructor(documentRef) {
     this.document = documentRef;
@@ -202,26 +204,35 @@ export class SiegeEngine {
     this.resize();
     if (this.state.rafId) cancelAnimationFrame(this.state.rafId);
     this.isCrashed = false;
+    this.resetMatchToLevel(1, {
+      message: "Signature Siege: gleiche Waves, aktiver Gegner-Daemon, 2 Tuerme + Gate.",
+      showHeroSelect: true,
+    });
+    this.state.rafId = requestAnimationFrame((ts) => this.loop(ts));
+  }
 
+  resetMatchToLevel(level, options = {}) {
+    const selectedClassId = this.state.selectedHeroClass || HERO_CLASSES[0].id;
     Object.assign(this.state, createInitialState());
+    this.state.level = level;
+    this.state.selectedHeroClass = selectedClassId;
     const selectedClass = getHeroClassById(this.state.selectedHeroClass);
     this.state.player = createHero("left", { W: this.W, laneY: this.laneY }, selectedClass);
     this.state.enemy = createHero("right", { W: this.W, laneY: this.laneY });
-    this.state.level = 1;
     this.state.player.skills = this.skills.makeRuntimeSkillList(0, selectedClass.id);
     this.state.enemy.skills = this.skills.makeRuntimeSkillList(() => rand(0.4, 3.2), selectedClass.id);
-    this.structures.setEnabled(this.state.level === 2);
+    this.structures.setEnabled(level === 2);
     this.state.structures = this.structures.buildSiegeStructures(this.laneY, this.W);
     this.wave.spawnWave();
-
     this.uiSystem.buildControls(
       (i) => this.skills.tryCastSkill(this.state.player, i),
       (i) => this.buyItem(i)
     );
     this.uiSystem.update();
-    this.showMessage("Signature Siege: gleiche Waves, aktiver Gegner-Daemon, 2 Tuerme + Gate.", 3.2);
-    this.openHeroSelect("Waehle deinen Helden fuer Level 1");
-    this.state.rafId = requestAnimationFrame((ts) => this.loop(ts));
+    if (options.message) this.showMessage(options.message, 2.8);
+    if (options.showHeroSelect) {
+      this.openHeroSelect(`Waehle deinen Helden fuer ${this.getCurrentLevelName()}`);
+    }
   }
 
   buyItem(index) {
@@ -422,6 +433,14 @@ export class SiegeEngine {
     if (!this.state.winner && this.state.player.deaths >= CONFIG.playerDeathLimit) {
       this.state.winner = 'enemy';
       this.showMessage("Niederlage! Zu viele Tode, Gegner haelt die Festung.", 999);
+    }
+
+    if (this.state.level === 1 && this.state.player.kills >= LEVEL1_KILLS_TO_ADVANCE) {
+      this.resetMatchToLevel(2, {
+        message: "Level 2 freigeschaltet! Siege startet mit komplettem Reset.",
+        showHeroSelect: true,
+      });
+      return;
     }
 
     this.uiSystem.update();

@@ -59,6 +59,7 @@ export class UISystem {
     this.ui.statsEl.innerHTML = `
       <div class="pill">Level <strong>${levelName}</strong></div>
       <div class="pill">Klasse <strong>${heroClassName}</strong></div>
+      <div class="pill">L1->L2 Ziel <strong>${p.kills} / 5 Kills</strong></div>
       <div class="pill">Level <strong>${p.level}</strong></div>
       <div class="pill">XP <strong>${p.exp}</strong> / ${xpToNext(p.level)}</div>
       <div class="pill">Gold <strong>${p.gold}</strong></div>
