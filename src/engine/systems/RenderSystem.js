@@ -196,7 +196,7 @@ export function createRenderSystem(world) {
         ctx.globalAlpha = 1;
       }
 
-      if (p.kind === "rocket-forward") {
+      if (p.kind === "rocket-shot" || p.kind === "rocket-forward") {
         ctx.save();
         ctx.translate(p.x, p.y);
         const rot = Math.atan2(p.vy || 0, p.vx || 1);

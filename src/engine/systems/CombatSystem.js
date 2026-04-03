@@ -121,7 +121,7 @@ export class CombatSystem {
       p.y += stepY;
       p.traveled = (p.traveled || 0) + Math.hypot(stepX, stepY);
 
-      const enemies = this.world.targeting.getOpposingUnits(p.from?.side || "left", true, p.from || null);
+      const enemies = this.world.targeting?.getOpposingUnits(p.from?.side || "left", true, p.from || null) || [];
       let directHit = null;
       for (const unit of enemies) {
         if (!unit || unit.dead) continue;
