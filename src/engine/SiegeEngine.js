@@ -93,6 +93,7 @@ export class SiegeEngine {
         ...this.effects,
         showMessage: (text, duration) => this.showMessage(text, duration),
       },
+      targeting: this.targeting,
       progression: {
         gainGold: (hero, amount) => gainGold(hero, amount),
         gainExp: (hero, amount) => gainExp(this.state, hero, amount, (text, duration) => this.showMessage(text, duration)),

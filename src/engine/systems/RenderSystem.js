@@ -185,6 +185,17 @@ export function createRenderSystem(world) {
 
   function drawProjectiles() {
     for (const p of state.projectiles) {
+      // #region agent log
+      if (p.kind === "rocket-shot" || p.kind === "rocket-forward") {
+        globalThis.__agentAppendLog?.({
+          hypothesisId: "E",
+          location: "RenderSystem.js:drawProjectiles",
+          message: "rendering rocket projectile branch",
+          data: { kind: p.kind, x: p.x, y: p.y, vx: p.vx, vy: p.vy },
+          timestamp: Date.now(),
+        });
+      }
+      // #endregion
       if (p.trail) {
         for (const t of p.trail) {
           ctx.globalAlpha = Math.max(0, t.life / 0.18) * 0.45;
