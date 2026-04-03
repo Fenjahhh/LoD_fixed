@@ -89,28 +89,66 @@ export class CombatSystem {
     const { state, effects } = this.world;
     for (let i = state.projectiles.length - 1; i >= 0; i -= 1) {
       const p = state.projectiles[i];
-      if (!p.target || p.target.dead) {
-        state.projectiles.splice(i, 1);
-        continue;
-      }
-
       p.trail = p.trail || [];
       p.trail.push({ x: p.x, y: p.y, life: 0.18 });
       if (p.trail.length > 8) p.trail.shift();
       for (const t of p.trail) t.life -= dt;
       p.trail = p.trail.filter((t) => t.life > 0);
 
-      const dx = p.target.x - p.x;
-      const dy = p.target.y - p.y;
-      const d = Math.hypot(dx, dy);
-      if (d < p.speed * dt + p.target.radius) {
-        this.damageUnit(p.target, p.damage, p.from);
-        effects.burst(p.x, p.y, p.color, 5);
-        state.projectiles.splice(i, 1);
+      if (p.target) {
+        if (p.target.dead) {
+          state.projectiles.splice(i, 1);
+          continue;
+        }
+        const dx = p.target.x - p.x;
+        const dy = p.target.y - p.y;
+        const d = Math.hypot(dx, dy);
+        if (d < p.speed * dt + p.target.radius) {
+          this.damageUnit(p.target, p.damage, p.from);
+          effects.burst(p.x, p.y, p.color, 5);
+          state.projectiles.splice(i, 1);
+          continue;
+        }
+        p.x += (dx / d) * p.speed * dt;
+        p.y += (dy / d) * p.speed * dt;
         continue;
       }
-      p.x += (dx / d) * p.speed * dt;
-      p.y += (dy / d) * p.speed * dt;
+
+      // Directional projectile (e.g. rocket) flying by velocity.
+      const stepX = (p.vx || 0) * dt;
+      const stepY = (p.vy || 0) * dt;
+      p.x += stepX;
+      p.y += stepY;
+      p.traveled = (p.traveled || 0) + Math.hypot(stepX, stepY);
+
+      const enemies = this.world.targeting.getOpposingUnits(p.from?.side || "left", true, p.from || null);
+      let directHit = null;
+      for (const unit of enemies) {
+        if (!unit || unit.dead) continue;
+        const d = Math.hypot(unit.x - p.x, unit.y - p.y);
+        if (d <= (unit.radius || 0) + p.radius + 2) {
+          directHit = unit;
+          break;
+        }
+      }
+
+      const expired = p.maxDistance && p.traveled >= p.maxDistance;
+      if (directHit || expired) {
+        if (p.aoeRadius && p.aoeRadius > 0) {
+          effects.ring(p.x, p.y, p.aoeRadius, p.color, 0.3);
+          for (const unit of enemies) {
+            if (!unit || unit.dead) continue;
+            const d = Math.hypot(unit.x - p.x, unit.y - p.y);
+            if (d <= p.aoeRadius + (unit.radius || 0)) {
+              this.damageUnit(unit, p.damage, p.from);
+            }
+          }
+        } else if (directHit) {
+          this.damageUnit(directHit, p.damage, p.from);
+        }
+        effects.burst(p.x, p.y, p.color, 8);
+        state.projectiles.splice(i, 1);
+      }
     }
   }
 
