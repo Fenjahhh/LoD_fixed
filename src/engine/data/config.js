@@ -30,6 +30,8 @@ export const CONFIG = {
   gateUnlockTime: 70,
   gateMinSiegeX: 220,
   playerDeathLimit: 7,
+  level1KillsToAdvance: 5,
+  level2KillsToAdvance: 8,
 };
 
 export const COLORS = {

@@ -25,6 +25,10 @@ export function createInitialState() {
     selectedHeroClass: "crimson_hunter",
     heroSelectOpen: false,
     skillHazards: [],
+    mapHoles: [],
+    level3HoleSpawnTimer: 0,
+    level3FluxX: 0,
+    level3FluxDir: 1,
     crashed: false,
     crashReason: "",
   };

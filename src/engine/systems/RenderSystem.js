@@ -34,6 +34,49 @@ export function createRenderSystem(world) {
       }
     }
 
+    if (state.level === 3) {
+      if (state.mapHazards) {
+        for (const hazard of state.mapHazards) {
+          const pulse = 0.78 + 0.22 * Math.sin(hazard.pulse * 2.5);
+          ctx.globalAlpha = 0.55 * pulse;
+          ctx.fillStyle = "#1b0d2e";
+          ctx.beginPath();
+          ctx.arc(hazard.x, hazard.y, hazard.radius + 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = "#a06dff";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(hazard.x, hazard.y, hazard.radius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      if (state.forceFields) {
+        for (const field of state.forceFields) {
+          ctx.strokeStyle = "rgba(126, 226, 255, 0.22)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(field.x, field.y, field.radius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+    }
+
+    if (state.level === 3 && state.holeHazards && state.holeHazards.length > 0) {
+      for (const hole of state.holeHazards) {
+        const lifePct = Math.max(0, hole.duration / hole.maxDuration);
+        ctx.fillStyle = `rgba(0, 0, 0, ${0.5 + 0.25 * lifePct})`;
+        ctx.beginPath();
+        ctx.arc(hole.x, hole.y, hole.radius + 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(168, 64, 255, 0.9)";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(hole.x, hole.y, hole.radius + 4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
     ctx.strokeStyle = '#334060';
     ctx.lineWidth = 4;
     ctx.strokeRect(config.arenaPadding, config.arenaPadding, W - config.arenaPadding * 2, H - config.arenaPadding * 2);
@@ -285,7 +328,8 @@ export function createRenderSystem(world) {
     const W = world.W;
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 18px Arial';
-    ctx.fillText('MID CONTROL', 30, 36);
+    const leftLabel = state.level === 3 ? 'HAZARD ARENA' : 'MID CONTROL';
+    ctx.fillText(leftLabel, 30, 36);
     const textWidth = ctx.measureText('FORTRESS FRONT').width;
     ctx.fillText('FORTRESS FRONT', W - textWidth - 30, 36);
   }

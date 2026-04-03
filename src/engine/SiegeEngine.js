@@ -18,6 +18,7 @@ import { UISystem } from "./systems/UISystem.js";
 import { createRenderSystem } from "./systems/RenderSystem.js";
 
 const LEVEL1_KILLS_TO_ADVANCE = 5;
+const LEVEL2_KILLS_TO_ADVANCE = 10;
 
 export class SiegeEngine {
   constructor(documentRef) {
@@ -216,6 +217,8 @@ export class SiegeEngine {
     Object.assign(this.state, createInitialState());
     this.state.level = level;
     this.state.selectedHeroClass = selectedClassId;
+    this.state.mapHazards = [];
+    this.state.forceFields = [];
     const selectedClass = getHeroClassById(this.state.selectedHeroClass);
     this.state.player = createHero("left", { W: this.W, laneY: this.laneY }, selectedClass);
     this.state.enemy = createHero("right", { W: this.W, laneY: this.laneY });
@@ -224,6 +227,10 @@ export class SiegeEngine {
     this.structures.setEnabled(level === 2);
     this.state.structures = this.structures.buildSiegeStructures(this.laneY, this.W);
     this.wave.spawnWave();
+    if (level === 3) {
+      this.state.mapHazards = this.createLevel3MapHazards();
+      this.state.forceFields = this.createLevel3ForceFields();
+    }
     this.uiSystem.buildControls(
       (i) => this.skills.tryCastSkill(this.state.player, i),
       (i) => this.buyItem(i)
@@ -414,6 +421,8 @@ export class SiegeEngine {
     this.structures.updateStructures(dt, this.W);
     this.combat.updateProjectiles(dt);
     this.updateSkillZones(dt);
+    this.updateMapHazards(dt);
+    this.updateForceFields(dt);
     this.effects.update(dt);
 
     if (this.structures.isGateVulnerable(this.state.level) && !this.state.gateWasVulnerable) {
@@ -442,6 +451,13 @@ export class SiegeEngine {
       });
       return;
     }
+    if (this.state.level === 2 && this.state.player.kills >= LEVEL2_KILLS_TO_ADVANCE) {
+      this.resetMatchToLevel(3, {
+        message: "Level 3: Hazard Arena! Loecher und Magnetfelder sind aktiv.",
+        showHeroSelect: true,
+      });
+      return;
+    }
 
     this.uiSystem.update();
   }
@@ -463,11 +479,99 @@ export class SiegeEngine {
       for (const unit of enemies) {
         if (unit.dead) continue;
         if (this.math.dist(zone, unit) <= zone.radius) {
-          const tickDamage = zone.baseDamage + zone.source.level * zone.scaling;
-          this.combat.damageUnit(unit, tickDamage, zone.source);
-          this.effects.burst(unit.x, unit.y, zone.color, 3);
+          if (zone.kind === "void-hole" || zone.instaKill) {
+            this.combat.damageUnit(unit, 99999, zone.source || { type: "hazard", side: "neutral" });
+            this.effects.burst(unit.x, unit.y, zone.color, 6);
+          } else {
+            const tickDamage = zone.baseDamage + zone.source.level * zone.scaling;
+            this.combat.damageUnit(unit, tickDamage, zone.source);
+            this.effects.burst(unit.x, unit.y, zone.color, 3);
+          }
         }
       }
+    }
+  }
+
+  createLevel3MapHazards() {
+    const centerX = this.W * 0.55;
+    const centerY = this.laneY;
+    const offset = Math.min(150, this.W * 0.12);
+    return [
+      {
+        id: "pit-a",
+        kind: "void-pit",
+        x: centerX - offset,
+        y: centerY - 58,
+        radius: 34,
+        pulse: 0,
+      },
+      {
+        id: "pit-b",
+        kind: "void-pit",
+        x: centerX + offset,
+        y: centerY + 62,
+        radius: 34,
+        pulse: 1.7,
+      },
+    ];
+  }
+
+  createLevel3ForceFields() {
+    return [
+      {
+        id: "mag-top",
+        x: this.W * 0.46,
+        y: this.laneY - 86,
+        radius: 95,
+        strength: 62,
+      },
+      {
+        id: "mag-bottom",
+        x: this.W * 0.64,
+        y: this.laneY + 92,
+        radius: 95,
+        strength: 62,
+      },
+    ];
+  }
+
+  updateMapHazards(dt) {
+    if (this.state.level !== 3 || !this.state.mapHazards?.length) return;
+    for (const hazard of this.state.mapHazards) {
+      hazard.pulse += dt;
+      const units = [];
+      if (this.state.player && !this.state.player.dead) units.push(this.state.player);
+      if (this.state.enemy && !this.state.enemy.dead) units.push(this.state.enemy);
+      for (const creep of this.state.creeps) if (!creep.dead) units.push(creep);
+      for (const unit of units) {
+        if (unit.type === "structure") continue;
+        if (this.math.dist(unit, hazard) <= hazard.radius) {
+          this.combat.damageUnit(unit, 9999, { type: "hazard", side: "neutral" });
+          this.effects.burst(unit.x, unit.y, "#a67cff", 16);
+        }
+      }
+    }
+  }
+
+  updateForceFields(dt) {
+    if (this.state.level !== 3 || !this.state.forceFields?.length) return;
+    const dynamicUnits = [];
+    if (this.state.player && !this.state.player.dead) dynamicUnits.push(this.state.player);
+    if (this.state.enemy && !this.state.enemy.dead) dynamicUnits.push(this.state.enemy);
+    for (const creep of this.state.creeps) if (!creep.dead) dynamicUnits.push(creep);
+
+    for (const unit of dynamicUnits) {
+      for (const field of this.state.forceFields) {
+        const dx = field.x - unit.x;
+        const dy = field.y - unit.y;
+        const d = Math.hypot(dx, dy);
+        if (d > field.radius || d < 1) continue;
+        const falloff = 1 - d / field.radius;
+        const step = field.strength * falloff * dt;
+        unit.x += (dx / d) * step;
+        unit.y += (dy / d) * step;
+      }
+      this.movement.keepUnitInArena(unit);
     }
   }
 
@@ -514,7 +618,9 @@ export class SiegeEngine {
   }
 
   getCurrentLevelName() {
-    return this.state.level === 1 ? "Level 1" : "Level 2";
+    if (this.state.level === 1) return "Level 1";
+    if (this.state.level === 2) return "Level 2";
+    return "Level 3";
   }
 
   getCurrentHeroClassName() {

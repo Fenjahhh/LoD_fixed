@@ -56,10 +56,15 @@ export class UISystem {
     this.ui.playerText.textContent = `HP ${Math.ceil(p.hp)}/${ps.maxHp} | Mana ${Math.ceil(p.mana)}/${ps.maxMana} | AD ${ps.attackDamage} | SPD ${ps.moveSpeed}`;
     this.ui.enemyText.textContent = `HP ${Math.ceil(e.hp)}/${es.maxHp} | Mana ${Math.ceil(e.mana)}/${es.maxMana} | Modus ${e.retreating ? 'Rückzug' : 'Kampf'}`;
 
+    const levelObjectivePill =
+      state.level === 1
+        ? `<div class="pill">L1->L2 Ziel <strong>${p.kills} / 5 Kills</strong></div>`
+        : "";
+
     this.ui.statsEl.innerHTML = `
       <div class="pill">Level <strong>${levelName}</strong></div>
       <div class="pill">Klasse <strong>${heroClassName}</strong></div>
-      <div class="pill">L1->L2 Ziel <strong>${p.kills} / 5 Kills</strong></div>
+      ${levelObjectivePill}
       <div class="pill">Level <strong>${p.level}</strong></div>
       <div class="pill">XP <strong>${p.exp}</strong> / ${xpToNext(p.level)}</div>
       <div class="pill">Gold <strong>${p.gold}</strong></div>
