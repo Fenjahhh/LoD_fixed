@@ -89,17 +89,6 @@ export class CombatSystem {
     const { state, effects } = this.world;
     for (let i = state.projectiles.length - 1; i >= 0; i -= 1) {
       const p = state.projectiles[i];
-      // #region agent log
-      if (!p.target && (p.kind === "rocket-shot" || p.kind === "rocket-forward")) {
-        globalThis.__agentAppendLog?.({
-          hypothesisId: "A",
-          location: "CombatSystem.js:updateProjectiles:directional-entry",
-          message: "updating directional projectile",
-          data: { kind: p.kind, hasTargeting: !!this.world.targeting, hasFrom: !!p.from, side: p.from?.side || null },
-          timestamp: Date.now(),
-        });
-      }
-      // #endregion
       p.trail = p.trail || [];
       p.trail.push({ x: p.x, y: p.y, life: 0.18 });
       if (p.trail.length > 8) p.trail.shift();
@@ -132,29 +121,7 @@ export class CombatSystem {
       p.y += stepY;
       p.traveled = (p.traveled || 0) + Math.hypot(stepX, stepY);
 
-      // #region agent log
-      if (!this.world.targeting) {
-        globalThis.__agentAppendLog?.({
-          hypothesisId: "A",
-          location: "CombatSystem.js:updateProjectiles:before-getOpposingUnits",
-          message: "missing targeting system in combat world",
-          data: { projectileKind: p.kind, fromSide: p.from?.side || null },
-          timestamp: Date.now(),
-        });
-      }
-      // #endregion
       const enemies = this.world.targeting?.getOpposingUnits(p.from?.side || "left", true, p.from || null) || [];
-      // #region agent log
-      if (!p.target && (p.kind === "rocket-shot" || p.kind === "rocket-forward")) {
-        globalThis.__agentAppendLog?.({
-          hypothesisId: "C",
-          location: "CombatSystem.js:updateProjectiles:enemy-scan",
-          message: "directional projectile scanned enemies",
-          data: { enemiesCount: Array.isArray(enemies) ? enemies.length : -1, aoeRadius: p.aoeRadius || 0 },
-          timestamp: Date.now(),
-        });
-      }
-      // #endregion
       let directHit = null;
       for (const unit of enemies) {
         if (!unit || unit.dead) continue;

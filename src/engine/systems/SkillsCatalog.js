@@ -67,15 +67,6 @@ export function createSkillsCatalog(env) {
       const angle = Number.isFinite(caster.facing) ? caster.facing : (caster.side === "left" ? 0 : Math.PI);
       const dirX = Math.cos(angle);
       const dirY = Math.sin(angle);
-      // #region agent log
-      globalThis.__agentAppendLog?.({
-        hypothesisId: "A",
-        location: "SkillsCatalog.js:qRocketForward",
-        message: "casting directional rocket",
-        data: { side: caster.side, classId: caster.classId, facing: caster.facing, hasTargetingRef: !!targeting },
-        timestamp: Date.now(),
-      });
-      // #endregion
       state.projectiles.push({
         from: caster,
         target: null,
@@ -92,15 +83,6 @@ export function createSkillsCatalog(env) {
         aoeRadius: tune.aoeRadius,
         trail: [],
       });
-      // #region agent log
-      globalThis.__agentAppendLog?.({
-        hypothesisId: "B",
-        location: "SkillsCatalog.js:qRocketForward",
-        message: "rocket projectile spawned",
-        data: { kind: "rocket-shot", speed: tune.speed, range: tune.range, aoeRadius: tune.aoeRadius },
-        timestamp: Date.now(),
-      });
-      // #endregion
       effects.burst(caster.x, caster.y, tune.color, 12);
       return true;
     },
@@ -108,15 +90,6 @@ export function createSkillsCatalog(env) {
     wPoisonCloud(caster, tune) {
       const centerX = caster.x + Math.cos(caster.facing || 0) * tune.offset;
       const centerY = caster.y + Math.sin(caster.facing || 0) * tune.offset;
-      // #region agent log
-      globalThis.__agentAppendLog?.({
-        hypothesisId: "D",
-        location: "SkillsCatalog.js:wPoisonCloud",
-        message: "poison cloud spawned",
-        data: { side: caster.side, x: centerX, y: centerY, radius: tune.radius, duration: tune.duration },
-        timestamp: Date.now(),
-      });
-      // #endregion
       state.skillHazards.push({
         kind: "poison-cloud",
         side: caster.side,
