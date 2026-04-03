@@ -11,6 +11,37 @@ export function createRenderSystem(world) {
     uiSystem,
   } = world;
 
+  function drawRelicObjects() {
+    if (state.level !== 5) return;
+    if (state.relics) {
+      for (const relic of state.relics) {
+        const pulse = 0.8 + 0.2 * Math.sin(relic.pulse || 0);
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = relic.color || "#f2d28e";
+        ctx.beginPath();
+        ctx.arc(relic.x, relic.y, relic.radius || 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "#fff4cc";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(relic.x, relic.y, (relic.radius || 12) + 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    if (state.soulCoins) {
+      for (const coin of state.soulCoins) {
+        const pulse = 0.75 + 0.25 * Math.sin(coin.pulse || 0);
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = coin.bonus ? "#ffd66f" : "#d9f7ff";
+        ctx.beginPath();
+        ctx.arc(coin.x, coin.y, coin.radius || 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
   function drawArena() {
     const W = world.W;
     const H = world.H;
@@ -70,6 +101,18 @@ export function createRenderSystem(world) {
           ctx.arc(field.x, field.y, field.radius, 0, Math.PI * 2);
           ctx.stroke();
         }
+      }
+    }
+
+    if (state.level === 5) {
+      ctx.strokeStyle = "rgba(160, 214, 255, 0.25)";
+      ctx.lineWidth = 2;
+      for (let i = 1; i <= 3; i += 1) {
+        const x = config.arenaPadding + ((W - config.arenaPadding * 2) * i) / 4;
+        ctx.beginPath();
+        ctx.moveTo(x, config.arenaPadding + 8);
+        ctx.lineTo(x, H - config.arenaPadding - 8);
+        ctx.stroke();
       }
     }
 
@@ -165,20 +208,6 @@ export function createRenderSystem(world) {
   }
 
   function drawEscortPayload() {
-    if (state.level !== 4 || !state.escort || state.escort.dead) return;
-    const payload = state.escort;
-    ctx.fillStyle = "#5d5030";
-    ctx.fillRect(payload.x - 24, payload.y - 14, 48, 28);
-    ctx.fillStyle = "#f0d39a";
-    ctx.fillRect(payload.x - 14, payload.y - 22, 28, 10);
-    ctx.fillStyle = "#0b0f18";
-    ctx.fillRect(payload.x - 28, payload.y - 34, 56, 6);
-    const hpPct = math.clamp(payload.hp / payload.maxHp, 0, 1);
-    ctx.fillStyle = "#8cff98";
-    ctx.fillRect(payload.x - 28, payload.y - 34, 56 * hpPct, 6);
-  }
-
-  function drawEscortPayload() {
     if (state.level !== 4 || !state.escortPayload || state.escortPayload.dead) return;
     const payload = state.escortPayload;
     const x = payload.x;
@@ -246,6 +275,21 @@ export function createRenderSystem(world) {
       ctx.lineTo(-6, 6);
       ctx.closePath();
       ctx.fill();
+    }
+    if (unit.relicMods?.spikes) {
+      ctx.strokeStyle = "#f4d6ff";
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 6; i += 1) {
+        const a = (Math.PI * 2 * i) / 6;
+        const x1 = Math.cos(a) * 14;
+        const y1 = Math.sin(a) * 14;
+        const x2 = Math.cos(a) * 22;
+        const y2 = Math.sin(a) * 22;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }
@@ -390,7 +434,7 @@ export function createRenderSystem(world) {
     const W = world.W;
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 18px Arial';
-    const leftLabel = state.level === 3 ? 'HAZARD ARENA' : 'MID CONTROL';
+    const leftLabel = state.level === 3 ? 'HAZARD ARENA' : state.level === 5 ? 'RELIC HUNT' : 'MID CONTROL';
     ctx.fillText(leftLabel, 30, 36);
     const textWidth = ctx.measureText('FORTRESS FRONT').width;
     ctx.fillText('FORTRESS FRONT', W - textWidth - 30, 36);
@@ -408,6 +452,7 @@ export function createRenderSystem(world) {
     if (state.level === 2) {
       for (const structure of state.structures) drawStructure(structure);
     }
+    drawRelicObjects();
     drawEscortPayload();
     drawUnit(state.player);
     drawUnit(state.enemy);

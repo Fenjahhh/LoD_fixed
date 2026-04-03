@@ -88,6 +88,7 @@ export function createSkillsCatalog(env) {
     },
 
     wPoisonCloud(caster, tune) {
+      const cloudSizeMod = caster.relicMods?.cloudSize || 1;
       const centerX = caster.x + Math.cos(caster.facing || 0) * tune.offset;
       const centerY = caster.y + Math.sin(caster.facing || 0) * tune.offset;
       state.skillHazards.push({
@@ -95,7 +96,7 @@ export function createSkillsCatalog(env) {
         side: caster.side,
         x: centerX,
         y: centerY,
-        radius: tune.radius,
+        radius: tune.radius * cloudSizeMod,
         duration: tune.duration,
         tickEvery: tune.tickEvery,
         tickTimer: tune.tickEvery,
@@ -104,7 +105,7 @@ export function createSkillsCatalog(env) {
         color: tune.color,
         source: caster,
       });
-      effects.ring(centerX, centerY, tune.radius, tune.color, 0.45);
+      effects.ring(centerX, centerY, tune.radius * cloudSizeMod, tune.color, 0.45);
       effects.burst(centerX, centerY, tune.color, 14);
       return true;
     },
@@ -207,8 +208,9 @@ export function createSkillsCatalog(env) {
         const dx = target.x - caster.x;
         const dy = target.y - caster.y;
         const d = Math.max(1, Math.hypot(dx, dy));
-        target.x += (dx / d) * tune.pushDistance;
-        target.y += (dy / d) * tune.pushDistance * 0.45;
+        const pushDistance = tune.pushDistance + (caster.relicMods?.bonusPush || 0);
+        target.x += (dx / d) * pushDistance;
+        target.y += (dy / d) * pushDistance * 0.45;
         movement.keepUnitInArena(target);
       }
       return true;
@@ -244,7 +246,7 @@ export function createSkillsCatalog(env) {
     const heroClass = getHeroClassById(heroClassId);
     const skillColor = heroClass.colors.main;
 
-    if (state.level >= 3 && heroClass.id === "crimson_hunter") {
+    if (state.level === 3 && heroClass.id === "crimson_hunter") {
       return [
         {
           key: "Q",
@@ -314,7 +316,7 @@ export function createSkillsCatalog(env) {
       ];
     }
 
-    if (state.level >= 3 && heroClass.id === "emerald_oracle") {
+    if (state.level === 3 && heroClass.id === "emerald_oracle") {
       return [
         {
           key: "Q",
@@ -385,7 +387,7 @@ export function createSkillsCatalog(env) {
       ];
     }
 
-    if (state.level >= 3 && heroClass.id === "void_templar") {
+    if (state.level === 3 && heroClass.id === "void_templar") {
       return [
         {
           key: "Q",
@@ -453,76 +455,6 @@ export function createSkillsCatalog(env) {
       ];
     }
 
-    if (state.level >= 3 && heroClass.id === "crimson_hunter") {
-      return [
-        {
-          key: "Q",
-          name: "Rift Pit",
-          cost: 32,
-          cooldown: 7.2,
-          desc: "Reisst ein Loch in den Boden (Insta-Kill-Zone).",
-          use(caster) {
-            return shared.wRiftHole(caster, {
-              castRange: 260,
-              radius: 42,
-              duration: 3.6,
-              tickEvery: 0.2,
-              color: "#281537",
-            });
-          },
-        },
-        {
-          key: "W",
-          name: "Rift Rocket",
-          cost: 24,
-          cooldown: 3.2,
-          desc: "Langstreckenrakete in Bewegungsrichtung mit Splash.",
-          use(caster) {
-            return shared.qRocketForward(caster, {
-              speed: 420,
-              range: 540,
-              radius: 8,
-              aoeRadius: 72,
-              baseDamage: 52,
-              scaling: 7,
-              color: "#ff5a5a",
-            });
-          },
-        },
-        {
-          key: "E",
-          name: "Crimson Mark",
-          cost: 28,
-          cooldown: 7.2,
-          desc: "Drain-Mark mit Heilung.",
-          use(caster) {
-            return shared.eDrain(caster, {
-              range: 205,
-              baseDamage: 46,
-              scaling: 5,
-              healRatio: 0.58,
-              color: "#ffc2c2",
-            });
-          },
-        },
-        {
-          key: "R",
-          name: "Predator Drive",
-          cost: 50,
-          cooldown: 12.8,
-          desc: "Massiver Damage/Tempo-Buff fuer kurze Zeit.",
-          use(caster) {
-            return shared.rBuff(caster, {
-              buffDuration: 5.2,
-              buffDamage: 16,
-              buffSpeed: 30,
-              color: "#ff9f9f",
-            });
-          },
-        },
-      ];
-    }
-
     if (heroClass.id === "crimson_hunter") {
       return [
         {
@@ -532,6 +464,17 @@ export function createSkillsCatalog(env) {
           cooldown: 3.2,
           desc: "Langstreckenrakete in Bewegungsrichtung mit Splash.",
           use(caster) {
+            if (caster.relicMods?.tripleShot) {
+              return shared.qTripleFan(caster, {
+                range: 520,
+                speed: 390,
+                radius: 7,
+                spread: 0.2,
+                baseDamage: 30,
+                scaling: 5,
+                color: "#ff7668",
+              });
+            }
             return shared.qRocketForward(caster, {
               speed: 420,
               range: 540,
@@ -601,6 +544,17 @@ export function createSkillsCatalog(env) {
           cooldown: 2.7,
           desc: "Geradliniger Speer auf naechstes Ziel.",
           use(caster) {
+            if (caster.relicMods?.tripleShot) {
+              return shared.qTripleFan(caster, {
+                range: 430,
+                speed: 390,
+                radius: 7,
+                spread: 0.18,
+                baseDamage: 25,
+                scaling: 5,
+                color: "#9fb2ff",
+              });
+            }
             return shared.qBolt(caster, {
               range: 400,
               speed: 360,
@@ -670,6 +624,17 @@ export function createSkillsCatalog(env) {
         cooldown: 2.3,
         desc: "Sehr schneller Giftfunke.",
         use(caster) {
+          if (caster.relicMods?.tripleShot) {
+            return shared.qTripleFan(caster, {
+              range: 450,
+              speed: 410,
+              radius: 7,
+              spread: 0.2,
+              baseDamage: 23,
+              scaling: 5,
+              color: "#72ffd5",
+            });
+          }
           return shared.qBolt(caster, {
             range: 420,
             speed: 450,
@@ -731,6 +696,37 @@ export function createSkillsCatalog(env) {
         },
       },
     ];
+  }
+
+  if (!shared.rDashBurst) {
+    shared.rDashBurst = function rDashBurst(caster, tune) {
+      const angle = Number.isFinite(caster.facing) ? caster.facing : (caster.side === "left" ? 0 : Math.PI);
+      const dx = Math.cos(angle);
+      const dy = Math.sin(angle);
+      const startX = caster.x;
+      const startY = caster.y;
+      caster.x += dx * tune.dashDistance;
+      caster.y += dy * tune.dashDistance * 0.55;
+      movement.keepUnitInArena(caster);
+      const enemies = targeting.getOpposingUnits(caster.side, true, caster);
+      let hit = false;
+      for (const unit of enemies) {
+        if (unit.dead) continue;
+        const lineDist = Math.hypot(unit.x - startX, unit.y - startY);
+        if (lineDist <= tune.dashDistance + 26 && math.dist(caster, unit) <= 84) {
+          combat.damageUnit(unit, tune.baseDamage + caster.level * tune.scaling, caster);
+          hit = true;
+        }
+      }
+      caster.buff = {
+        timer: tune.buffDuration,
+        damage: tune.buffDamage,
+        speed: tune.buffSpeed,
+      };
+      effects.beam(startX, startY, caster.x, caster.y, tune.color);
+      effects.burst(caster.x, caster.y, tune.color, 12);
+      return hit || true;
+    };
   }
 
   return {

@@ -32,6 +32,20 @@ export class CombatSystem {
     if (unit.dead) return;
     unit.hp -= amount;
     effects.burst(unit.x, unit.y, '#ffffff', 4, amount);
+    if (
+      unit.type === "hero" &&
+      unit.relicMods?.spikes &&
+      source &&
+      source.side &&
+      source.side !== unit.side &&
+      source.type !== "spike-reflect" &&
+      typeof source.hp === "number" &&
+      typeof source.x === "number" &&
+      typeof source.y === "number"
+    ) {
+      const reflectSource = { type: "spike-reflect", side: unit.side };
+      this.damageUnit(source, 6, reflectSource);
+    }
     if (unit.hp > 0) return;
 
     unit.hp = 0;
@@ -57,11 +71,16 @@ export class CombatSystem {
     state.cameraShake = 4;
     if (!source) return;
 
-    if (unit.type === 'creep' && source.type === 'hero') {
-      const gold = unit.role === 'melee' ? CONFIG.pointsPerMelee : CONFIG.pointsPerRanged;
-      const exp = unit.role === 'melee' ? CONFIG.expPerMelee : CONFIG.expPerRanged;
-      progression.gainGold(source, gold);
-      progression.gainExp(source, exp);
+    if (unit.type === "creep") {
+      if (typeof this.world.onCreepDeath === "function") {
+        this.world.onCreepDeath(unit, source || null);
+      }
+      if (source.type === 'hero' && source.side !== unit.side) {
+        const gold = unit.role === 'melee' ? CONFIG.pointsPerMelee : CONFIG.pointsPerRanged;
+        const exp = unit.role === 'melee' ? CONFIG.expPerMelee : CONFIG.expPerRanged;
+        progression.gainGold(source, gold);
+        progression.gainExp(source, exp);
+      }
       return;
     }
 

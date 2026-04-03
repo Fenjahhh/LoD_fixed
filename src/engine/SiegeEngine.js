@@ -17,9 +17,10 @@ import { createInputSystem } from "./systems/InputSystem.js";
 import { UISystem } from "./systems/UISystem.js";
 import { createRenderSystem } from "./systems/RenderSystem.js";
 
-const LEVEL1_KILLS_TO_ADVANCE = 5;
-const LEVEL2_KILLS_TO_ADVANCE = 10;
-const LEVEL3_KILLS_TO_ADVANCE = 14;
+const LEVEL1_KILLS_TO_ADVANCE = CONFIG.level1KillsToAdvance;
+const LEVEL2_KILLS_TO_ADVANCE = CONFIG.level2KillsToAdvance;
+const LEVEL3_KILLS_TO_ADVANCE = CONFIG.level3KillsToAdvance;
+const LEVEL4_KILLS_TO_ADVANCE = CONFIG.level4KillsToAdvance;
 
 export class SiegeEngine {
   constructor(documentRef) {
@@ -99,6 +100,7 @@ export class SiegeEngine {
         ...this.effects,
         showMessage: (text, duration) => this.showMessage(text, duration),
       },
+      onCreepDeath: (creep, source) => this.handleCreepDeath(creep, source),
       targeting: this.targeting,
       progression: {
         gainGold: (hero, amount) => gainGold(hero, amount),
@@ -221,6 +223,9 @@ export class SiegeEngine {
     this.state.mapHazards = [];
     this.state.forceFields = [];
     this.state.escortPayload = null;
+    this.state.relics = [];
+    this.state.soulCoins = [];
+    this.state.relicSpawnTimer = 0;
     this.state.levelMode = null;
     this.state.escortObjective = null;
     const selectedClass = getHeroClassById(this.state.selectedHeroClass);
@@ -239,6 +244,12 @@ export class SiegeEngine {
       this.state.escortPayload = this.createEscortPayload();
       this.state.escortObjective = this.state.escortPayload;
       this.state.levelMode = "escort";
+    }
+    if (level === 5) {
+      this.state.levelMode = "relic-hunt";
+      this.state.relicSpawnTimer = CONFIG.relicSpawnEvery * 0.5;
+      this.spawnRelicDrop();
+      this.spawnRelicDrop();
     }
     this.uiSystem.buildControls(
       (i) => this.skills.tryCastSkill(this.state.player, i),
@@ -433,6 +444,7 @@ export class SiegeEngine {
     this.updateMapHazards(dt);
     this.updateForceFields(dt);
     this.updateEscortPayload(dt);
+    this.updateRelicMode(dt);
     this.effects.update(dt);
 
     if (this.structures.isGateVulnerable(this.state.level) && !this.state.gateWasVulnerable) {
@@ -471,6 +483,13 @@ export class SiegeEngine {
     if (this.state.level === 3 && this.state.player.kills >= LEVEL3_KILLS_TO_ADVANCE) {
       this.resetMatchToLevel(4, {
         message: "Level 4: Escort! Beschuetze die Payload bis zur Festung.",
+        showHeroSelect: true,
+      });
+      return;
+    }
+    if (this.state.level === 4 && this.state.player.kills >= LEVEL4_KILLS_TO_ADVANCE) {
+      this.resetMatchToLevel(5, {
+        message: "Level 5: Relic Hunt! Sammle Relics und Soul Coins.",
         showHeroSelect: true,
       });
       return;
@@ -667,6 +686,120 @@ export class SiegeEngine {
     }
   }
 
+  handleCreepDeath(creep, source) {
+    if (this.state.level !== 5) return;
+    const deny = !!(source && source.type === "hero" && source.side === creep.side);
+    const value = deny ? 2 : 1;
+    this.state.soulCoins.push({
+      id: `coin-${Date.now()}-${Math.floor(this.math.rand(0, 99999))}`,
+      x: creep.x,
+      y: creep.y,
+      radius: 9,
+      value,
+      bonus: deny,
+      ttl: CONFIG.soulCoinLifetime,
+      pulse: this.math.rand(0, Math.PI * 2),
+    });
+    if (deny && source === this.state.player) {
+      this.showMessage("Deny! Bonus Soul Coin gespawnt.", 1.1);
+    }
+  }
+
+  spawnRelicDrop() {
+    const relicTypes = [
+      { kind: "fan_shard", name: "Fan Shard", color: "#ff9f7a" },
+      { kind: "force_core", name: "Force Core", color: "#86c9ff" },
+      { kind: "toxin_idol", name: "Toxin Idol", color: "#79ffca" },
+      { kind: "spike_shell", name: "Spike Shell", color: "#e8d3ff" },
+    ];
+    const relic = relicTypes[Math.floor(this.math.rand(0, relicTypes.length))];
+    const x = this.math.rand(CONFIG.arenaPadding + 120, this.W - CONFIG.arenaPadding - 120);
+    const y = this.math.rand(this.laneY - 180, this.laneY + 180);
+    this.state.relics.push({
+      id: `relic-${Date.now()}-${Math.floor(this.math.rand(0, 99999))}`,
+      ...relic,
+      x,
+      y,
+      radius: 13,
+      ttl: 20,
+      pulse: this.math.rand(0, Math.PI * 2),
+    });
+  }
+
+  applyRelicToHero(hero, relic) {
+    hero.relics = hero.relics || [];
+    hero.relicMods = hero.relicMods || { tripleShot: false, bonusPush: 0, cloudSize: 1, spikes: false };
+    hero.relics.push(relic.kind);
+    if (relic.kind === "fan_shard") hero.relicMods.tripleShot = true;
+    if (relic.kind === "force_core") hero.relicMods.bonusPush += 22;
+    if (relic.kind === "toxin_idol") hero.relicMods.cloudSize = Math.min(2.2, hero.relicMods.cloudSize + 0.35);
+    if (relic.kind === "spike_shell") hero.relicMods.spikes = true;
+    if (hero === this.state.player) {
+      this.showMessage(`Relic erhalten: ${relic.name}`, 1.1);
+    }
+  }
+
+  updateRelicMode(dt) {
+    if (this.state.level !== 5) return;
+    this.state.relicSpawnTimer += dt;
+    if (this.state.relicSpawnTimer >= CONFIG.relicSpawnEvery) {
+      this.state.relicSpawnTimer = 0;
+      if (this.state.relics.length < CONFIG.relicMaxOnMap) {
+        this.spawnRelicDrop();
+      }
+    }
+
+    const heroes = [this.state.player, this.state.enemy].filter((h) => h && !h.dead);
+    for (let i = this.state.relics.length - 1; i >= 0; i -= 1) {
+      const relic = this.state.relics[i];
+      relic.ttl -= dt;
+      relic.pulse += dt * 2.1;
+      if (relic.ttl <= 0) {
+        this.state.relics.splice(i, 1);
+        continue;
+      }
+      let picked = false;
+      for (const hero of heroes) {
+        if (this.math.dist(hero, relic) <= hero.radius + relic.radius + 4) {
+          this.applyRelicToHero(hero, relic);
+          picked = true;
+          break;
+        }
+      }
+      if (picked) this.state.relics.splice(i, 1);
+    }
+
+    for (let i = this.state.soulCoins.length - 1; i >= 0; i -= 1) {
+      const coin = this.state.soulCoins[i];
+      coin.ttl -= dt;
+      coin.pulse += dt * 4;
+      if (coin.ttl <= 0) {
+        this.state.soulCoins.splice(i, 1);
+        continue;
+      }
+      let collected = false;
+      for (const hero of heroes) {
+        if (this.math.dist(hero, coin) <= hero.radius + coin.radius + 3) {
+          hero.soulCoins = (hero.soulCoins || 0) + coin.value;
+          if (hero === this.state.player) this.showMessage(`+${coin.value} Soul Coin`, 0.8);
+          collected = true;
+          break;
+        }
+      }
+      if (collected) this.state.soulCoins.splice(i, 1);
+    }
+
+    if (!this.state.winner && (this.state.player.soulCoins || 0) >= CONFIG.level5SoulCoinsToWin) {
+      this.state.winner = "player";
+      this.showMessage("Relic Hunt gewonnen! Soul-Ziel erreicht.", 999);
+      return;
+    }
+    if (!this.state.winner && (this.state.enemy.soulCoins || 0) >= CONFIG.level5SoulCoinsToWin) {
+      this.state.winner = "enemy";
+      this.showMessage("Relic Hunt verloren! Gegner hat genug Soul Coins.", 999);
+    }
+  }
+
   loop(ts) {
     if (this.isCrashed || this.state.crashed) return;
     try {
@@ -713,7 +846,8 @@ export class SiegeEngine {
     if (this.state.level === 1) return "Level 1";
     if (this.state.level === 2) return "Level 2";
     if (this.state.level === 3) return "Level 3";
-    return "Level 4";
+    if (this.state.level === 4) return "Level 4";
+    return "Level 5";
   }
 
   getCurrentHeroClassName() {
@@ -721,7 +855,7 @@ export class SiegeEngine {
   }
 
   nextLevel() {
-    const next = this.state.level >= 4 ? 1 : this.state.level + 1;
+    const next = this.state.level >= 5 ? 1 : this.state.level + 1;
     const msg =
       next === 1
         ? "Level 1: Open Lane (ohne Tuerme und Tor)."
@@ -729,7 +863,9 @@ export class SiegeEngine {
           ? "Level 2: Signature Siege (mit Tuerme und Tor)."
           : next === 3
             ? "Level 3: Hazard Arena mit Loechern und Magnetfeldern."
-            : "Level 4: Escort! Beschuetze die Payload.";
+            : next === 4
+              ? "Level 4: Escort! Beschuetze die Payload."
+              : "Level 5: Relic Hunt mit Soul Coins und Relics.";
     this.resetMatchToLevel(next, { message: msg, showHeroSelect: true });
   }
 
@@ -752,6 +888,14 @@ export class SiegeEngine {
     newHero.dead = old.dead;
     newHero.respawnTimer = old.respawnTimer;
     newHero.buff = old.buff;
+    newHero.soulCoins = old.soulCoins || 0;
+    newHero.relics = [...(old.relics || [])];
+    newHero.relicMods = {
+      tripleShot: !!old.relicMods?.tripleShot,
+      bonusPush: old.relicMods?.bonusPush || 0,
+      cloudSize: old.relicMods?.cloudSize || 1,
+      spikes: !!old.relicMods?.spikes,
+    };
     newHero.hp = Math.min(newHero.maxHp, old.hp);
     newHero.mana = Math.min(newHero.maxMana, old.mana);
     newHero.skills = this.skills.makeRuntimeSkillList(0, currentClass.id);

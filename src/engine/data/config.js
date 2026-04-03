@@ -31,8 +31,13 @@ export const CONFIG = {
   gateMinSiegeX: 220,
   playerDeathLimit: 7,
   level1KillsToAdvance: 5,
-  level2KillsToAdvance: 8,
-  level3KillsToAdvance: 12,
+  level2KillsToAdvance: 10,
+  level3KillsToAdvance: 14,
+  level4KillsToAdvance: 16,
+  level5SoulCoinsToWin: 18,
+  relicSpawnEvery: 10,
+  relicMaxOnMap: 4,
+  soulCoinLifetime: 12,
   escortPayloadHp: 1800,
   escortPayloadRadius: 24,
   escortPayloadStartX: 210,
@@ -45,6 +50,8 @@ export const CONFIG = {
   escortPayloadMinSpeed: 6,
   escortPayloadMaxSpeed: 56,
   escortPayloadEnemyDamagePerSecond: 55,
+  escortInfluenceRadius: 100,
+  escortPayloadDpsFactor: 2.2,
 };
 
 export const COLORS = {

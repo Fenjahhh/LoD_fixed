@@ -58,12 +58,14 @@ export class UISystem {
 
     const levelObjectivePill =
       state.level === 1
-        ? `<div class="pill">L1->L2 Ziel <strong>${p.kills} / 5 Kills</strong></div>`
+        ? `<div class="pill">L1->L2 Ziel <strong>${p.kills} / ${config.level1KillsToAdvance} Kills</strong></div>`
         : state.level === 2
-          ? `<div class="pill">L2->L3 Ziel <strong>${p.kills} / 10 Kills</strong></div>`
+          ? `<div class="pill">L2->L3 Ziel <strong>${p.kills} / ${config.level2KillsToAdvance} Kills</strong></div>`
           : state.level === 3
-            ? `<div class="pill">L3->L4 Ziel <strong>${p.kills} / 14 Kills</strong></div>`
-            : `<div class="pill">Escort <strong>${Math.round(state.escortPayload?.progress || 0)}%</strong></div>`;
+            ? `<div class="pill">L3->L4 Ziel <strong>${p.kills} / ${config.level3KillsToAdvance} Kills</strong></div>`
+            : state.level === 4
+              ? `<div class="pill">L4->L5 Ziel <strong>${p.kills} / ${config.level4KillsToAdvance} Kills</strong></div>`
+              : `<div class="pill">Relic Hunt <strong>${p.soulCoins || 0} / ${config.level5SoulCoinsToWin}</strong></div>`;
 
     this.ui.statsEl.innerHTML = `
       <div class="pill">Level <strong>${levelName}</strong></div>
@@ -73,6 +75,8 @@ export class UISystem {
       <div class="pill">XP <strong>${p.exp}</strong> / ${xpToNext(p.level)}</div>
       <div class="pill">Gold <strong>${p.gold}</strong></div>
       <div class="pill">Kills <strong>${p.kills}</strong></div>
+      <div class="pill">Soul <strong>${p.soulCoins || 0}</strong> : ${(e.soulCoins || 0)}</div>
+      <div class="pill">Relics <strong>${(p.relics || []).length}</strong></div>
       <div class="pill">Tode <strong>${p.deaths}</strong> / ${config.playerDeathLimit}</div>
       <div class="pill">Türme <strong>${towersAlive}</strong> / 2</div>
       <div class="pill">Tor <strong>${gate ? Math.ceil(gate.hp) : 0}</strong> ${gate && gate.vulnerable ? '(offen)' : '(gesperrt)'}</div>

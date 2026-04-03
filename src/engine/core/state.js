@@ -30,6 +30,10 @@ export function createInitialState() {
     level3FluxX: 0,
     level3FluxDir: 1,
     escortPayload: null,
+    relics: [],
+    relicSpawnTimer: 0,
+    soulCoins: [],
+    denySoulCoinBonus: 12,
     crashed: false,
     crashReason: "",
   };

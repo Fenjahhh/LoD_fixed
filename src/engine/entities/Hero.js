@@ -45,6 +45,14 @@ export function createHero(side, world, heroClass = null) {
     autoAttackTrailColor: classColors.autoTrail || defaultAuto,
     autoShotSpeed: classStats.autoShotSpeed ?? 170,
     autoShotRadius: classStats.autoShotRadius ?? 5,
+    soulCoins: 0,
+    relics: [],
+    relicMods: {
+      tripleShot: false,
+      bonusPush: 0,
+      cloudSize: 1,
+      spikes: false,
+    },
   };
 }
 
